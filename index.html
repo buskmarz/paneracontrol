@@ -1,0 +1,2821 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panera · Control de Pasteles</title>
+
+<meta name="theme-color" content="#2B4E59">
+<link rel="icon" href="./assets/logo-panera.png">
+<script>
+// Pre-aplicar tema antes del CSS para evitar parpadeo
+(()=>{ try{ const saved = localStorage.getItem('panera.theme');
+  const t = (saved==='dark'||saved==='light') ? saved : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark':'light');
+  document.documentElement.setAttribute('data-theme', t);
+}catch(e){} })();
+</script>
+
+<!-- Fuentes y Chart.js (CDN) -->
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+  :root{
+    --p-light:#E6E6E6; --p-sky:#C3D8E0; --p-blue:#66B6CC; --p-deep:#2B4E59; --p-gray:#819DA6; --ink:#1f2937; --bg:#f7fafc;
+    --ok:#16a34a; --warn:#f59e0b; --err:#dc2626; --shadow:0 6px 20px rgba(0,0,0,.08);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:Montserrat,system-ui,Segoe UI,Roboto,Helvetica,Arial}
+  header{background:linear-gradient(135deg,var(--p-blue),var(--p-deep));color:#fff;padding:20px 16px}
+  header h1{margin:0;font-size:22px;letter-spacing:.3px}
+  header small{opacity:.9}
+  .wrap{max-width:1200px;margin:0 auto;padding:16px}
+
+  /* NAV & CARDS */
+  nav{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px}
+  nav button{border:0;padding:10px 12px;background:#fff;border-radius:10px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.06);cursor:pointer;transition:all .15s ease}
+  nav button.active{background:var(--p-blue);color:#fff}
+  section.card{background:#fff;border:1px solid var(--p-light);border-radius:14px;padding:14px;box-shadow:var(--shadow);margin:0 0 16px}
+  /* Solo las secciones de pestaña llevan esta clase: */
+  .tab{ }
+
+  /* LAYOUT UTILS */
+  .grid{display:grid;gap:12px}
+  .g2{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  .g5{grid-template-columns:repeat(5,1fr)}
+  .g6{grid-template-columns:repeat(6,1fr)}
+  .g7{grid-template-columns:repeat(7,1fr)}
+  .flex{display:flex;gap:10px;align-items:center}
+  .hidden{display:none}
+  .hr{height:1px;background:var(--p-light);margin:10px 0}
+  .narrow{max-width:800px}
+
+  /* FORMS & TABLES */
+  label{font-size:12px;color:#4b5563;font-weight:600;display:block;margin-bottom:4px}
+  input,select,textarea{width:100%;padding:10px;border:1px solid var(--p-light);border-radius:10px;background:#fff;transition:border-color .15s ease, box-shadow .15s ease}
+  input::placeholder, textarea::placeholder{color:#9aa4ae}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--p-blue);box-shadow:0 0 0 3px rgba(102,182,204,.25)}
+  select[required] option[disabled]{color:#9aa4ae}
+  nav button:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.08)}
+  input[type="number"]{text-align:right}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:8px;border-bottom:1px dashed var(--p-light);font-size:14px}
+  th{background:#f3f6f8;text-align:left}
+  .right{text-align:right}
+  .muted{color:#6b7280}
+  tbody tr:hover{background:#f9fbfe}
+
+  /* QUICK LISTS / BADGES */
+  .list{list-style:none;padding:0;margin:0}
+  .list li{padding:8px 0;border-bottom:1px dashed var(--p-light);display:flex;gap:8px;justify-content:space-between;align-items:center}
+  .badge{display:inline-block;padding:3px 8px;border-radius:999px;background:#eef2f7;color:#0f172a;font-size:12px}
+
+  /* BUTTONS & BADGES */
+  .btn{border:0;border-radius:10px;padding:10px 12px;font-weight:700;cursor:pointer;transition:transform .08s ease, box-shadow .15s ease}
+  .btn.primary{background:var(--p-deep);color:#fff}
+  .btn.alt{background:var(--p-blue);color:#fff}
+  .btn.ghost{background:transparent;border:2px solid var(--p-deep);color:var(--p-deep)}
+  .btn:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
+  .tag{font-size:12px;background:var(--p-sky);color:#0f172a;padding:3px 8px;border-radius:999px}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#eef6f9}
+
+  /* TOTALS & KPI */
+  .totals{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .totals div{background:#f9fbfc;border:1px solid var(--p-light);border-radius:10px;padding:10px}
+  .totals.compact div{padding:6px;font-size:13px}
+  .totals.compact b{font-size:16px}
+  .totals.compact input{padding:6px;font-size:13px;max-width:140px}
+
+  .kpi{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+  .kpi .box{background:#fff;border:1px solid var(--p-light);border-radius:12px;padding:12px}
+  .kpi .box h3{margin:0 0 6px;font-size:13px;color:#475569}
+  .kpi .box b{font-size:18px}
+
+  /* HEADER BRANDING */
+  .brand{display:flex;align-items:center;gap:12px}
+  #logo-panera{height:44px;max-height:44px;width:auto;display:block}
+
+  /* STICKY ACTIONS (venta) */
+  .sticky-actions{position:sticky;bottom:0;background:#fff;padding:12px;border-top:1px solid var(--p-light);z-index:10}
+
+  footer{color:var(--p-gray);text-align:center;font-size:12px;margin:10px 0 30px}
+
+  /* Extras (modal) */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:9999}
+  .modal .box{background:#fff;border-radius:14px;max-width:800px;width:92vw;padding:16px;border:1px solid var(--p-light);box-shadow:0 10px 30px rgba(0,0,0,.18)}
+
+  /* AUTOCOMPLETE CLIENTE */
+  .ac-wrap{position:relative}
+  .ac-list{position:absolute;z-index:50;top:100%;left:0;right:0;background:#fff;border:1px solid var(--p-light);border-radius:10px;box-shadow:0 10px 20px rgba(0,0,0,.08);max-height:220px;overflow:auto;margin-top:4px}
+  .ac-item{padding:8px 10px;cursor:pointer;display:flex;justify-content:space-between;gap:10px}
+  .ac-item:hover{background:#f7fafc}
+  .ac-name{font-weight:700}
+  .ac-meta{font-size:12px;color:#64748b;text-align:right}
+
+  /* Toasts */
+  .toast-wrap{position:fixed;right:14px;bottom:14px;display:flex;flex-direction:column;gap:8px;z-index:99999}
+  .toast{background:#fff;border:1px solid var(--p-light);box-shadow:var(--shadow);padding:10px 12px;border-radius:10px;min-width:220px;max-width:360px}
+  .toast.ok{border-left:4px solid var(--ok)}
+  .toast.warn{border-left:4px solid var(--warn)}
+  .toast.err{border-left:4px solid var(--err)}
+
+  /* Auth */
+  body.auth-locked{overflow:hidden}
+  .auth-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;z-index:10000;
+    background:
+      radial-gradient(700px 220px at 8% 0%, rgba(102,182,204,.25), transparent 60%),
+      radial-gradient(700px 260px at 92% 8%, rgba(43,78,89,.25), transparent 60%),
+      var(--bg);
+  }
+  .auth-screen.hidden{display:none}
+  .auth-card{background:#fff;border:1px solid var(--p-light);border-radius:16px;box-shadow:var(--shadow);padding:18px;width:min(420px,92vw)}
+  .auth-brand{display:flex;gap:12px;align-items:center;margin-bottom:8px}
+  .auth-logo{height:38px;width:auto;display:block}
+  .auth-error{min-height:16px;font-size:12px;color:var(--err)}
+  .auth-actions{display:flex;gap:10px;align-items:center;justify-content:flex-end}
+  /* ===== Enhancements (UI Pro + Dark Mode) ===== */
+  /* Header sticky and layout */
+  header{position:sticky;top:0;z-index:100}
+  header .wrap{display:flex;align-items:center;justify-content:space-between}
+  /* Dark theme palette overrides */
+  html[data-theme="dark"]{
+    --bg:#0b1220; --ink:#e5e7eb; --p-light:#1f2937; --p-sky:#0f2030; --p-blue:#4ba9c4; --p-deep:#18323c; --p-gray:#9aa4ae;
+    --ok:#22c55e; --warn:#fbbf24; --err:#ef4444; --shadow:0 6px 20px rgba(0,0,0,.40);
+  }
+  /* Cards, tables, controls in dark */
+  html[data-theme="dark"] section.card{background:#0f172a;border-color:#1f2937}
+  html[data-theme="dark"] input, html[data-theme="dark"] select, html[data-theme="dark"] textarea{background:#0b1320;border-color:#1f2937;color:var(--ink)}
+  html[data-theme="dark"] nav button{background:#0f172a;border:1px solid #1f2937;color:var(--ink);box-shadow:none}
+  /* Toolbar */
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap}
+  /* Small buttons */
+  .btn.sm{padding:6px 8px;font-size:12px;border-radius:8px}
+  /* Sun/Moon icons toggle */
+  #theme-toggle #icon-sun{display:inline-block}
+  #theme-toggle #icon-moon{display:none}
+  html[data-theme="dark"] #theme-toggle #icon-sun{display:none}
+  html[data-theme="dark"] #theme-toggle #icon-moon{display:inline-block}
+  /* Table polish */
+  th{position:sticky;top:0;z-index:1;background:#f3f6f8}
+  html[data-theme="dark"] th{background:#0f2030}
+  tbody tr:nth-child(odd){background:rgba(0,0,0,.02)}
+  html[data-theme="dark"] tbody tr:nth-child(odd){background:rgba(255,255,255,.02)}
+  html[data-theme="dark"] tbody tr:hover{background:#0e1a26}
+  /* Misc */
+  html[data-theme="dark"] .badge{background:#102131;color:#e2e8f0}
+  html[data-theme="dark"] .tag{background:#102131;color:#e2e8f0}
+  html[data-theme="dark"] .pill{background:#0f2030;color:#e2e8f0}
+  html[data-theme="dark"] .sticky-actions{background:#0f172a;border-color:#1f2937}
+  html[data-theme="dark"] .modal .box{background:#0f172a;border-color:#1f2937}
+  html[data-theme="dark"] .ac-list{background:#0f172a;border-color:#1f2937}
+  html[data-theme="dark"] .ac-item:hover{background:#0e1a26}
+  html[data-theme="dark"] .toast{background:#0f172a;border-color:#1f2937;color:var(--ink)}
+  html[data-theme="dark"] .auth-card{background:#0f172a;border-color:#1f2937}
+</style>
+</head>
+<body>
+<div id="auth-screen" class="auth-screen hidden" aria-hidden="true">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <img class="auth-logo" src="./assets/logo-panera.svg" alt="Panera" onerror="this.onerror=null;this.src='./assets/logo-panera.png';">
+      <div>
+        <h2 style="margin:0">Acceso</h2>
+        <small class="muted">Control de Pasteles</small>
+      </div>
+    </div>
+    <form id="auth-form" class="grid" style="gap:10px">
+      <div>
+        <label>Usuario</label>
+        <input id="auth-user" name="username" autocomplete="username" placeholder="Usuario">
+      </div>
+      <div>
+        <label>Contrasena</label>
+        <input id="auth-pass" type="password" name="password" autocomplete="current-password" placeholder="Contrasena">
+      </div>
+      <div id="auth-error" class="auth-error" role="alert"></div>
+      <div class="auth-actions">
+        <button class="btn primary" type="submit">Entrar</button>
+      </div>
+    </form>
+  </div>
+</div>
+<header>
+  <div class="wrap">
+    <div class="brand">
+      <img id="logo-panera" src="./assets/logo-panera.svg" alt="Panera Signature" onerror="this.onerror=null;this.src='./assets/logo-panera.png';">
+      <div>
+        <h1>Control de Pasteles</h1>
+        <small>Folio, ventas, pagos, gastos, dashboard.</small>
+      </div>
+    </div>
+    <div class="toolbar">
+      <button id="theme-toggle" class="btn ghost sm" title="Cambiar tema" onclick="toggleTheme()" aria-label="Cambiar tema">
+        <svg id="icon-sun" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6.76 4.84l-1.8-1.79L3.17 4.84l1.79 1.79 1.8-1.79zM1 13h3v-2H1v2zm10 10h2v-3h-2v3zM4.22 19.78l1.79-1.79-1.8-1.79-1.79 1.79 1.8 1.79zM20 1h-2v3h2V1zM19.78 19.78l1.79-1.79-1.8-1.79-1.79 1.79 1.8 1.79zM17.24 4.84l1.79-1.79-1.8-1.79-1.79 1.79 1.8 1.79zM23 11h-3v2h3v-2zM12 6a6 6 0 100 12A6 6 0 0012 6z"/></svg>
+        <svg id="icon-moon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M21.64 13a9 9 0 01-11.3-11.3A9 9 0 1021.64 13z"/></svg>
+      </button>
+      <button id="logout-btn" class="btn ghost sm hidden" title="Cerrar sesion" onclick="logout()" aria-label="Cerrar sesion">Salir</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <nav>
+    <button class="active" data-tab="tab-dashboard">Dashboard</button>
+    <button data-tab="tab-ventas">Ventas</button>
+    <button data-tab="tab-clientes">Clientes</button>
+    <button data-tab="tab-productos">Productos</button>
+    <button data-tab="tab-cotizador">Cotizador</button>
+    <button data-tab="tab-gastos">Gastos</button>
+    <button data-tab="tab-reportes">Reportes</button>
+    <button data-tab="tab-config">Configuración</button>
+    <button data-tab="tab-calendario">Calendario</button>
+  </nav>
+
+  <!-- DASHBOARD -->
+  <section id="tab-dashboard" class="tab">
+    <section class="card">
+      <div class="flex" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <button class="btn primary" onclick="generarCorteRapidoHoy()">Corte rápido (hoy)</button>
+        <button class="btn ghost" onclick="descargarBackupRapido()">Backup rápido (.json)</button>
+      </div>
+
+      <div class="grid g3" style="margin-bottom:10px">
+        <div><label>Desde (Dashboard)</label><input type="date" id="db-desde" oninput="renderDashboard()"></div>
+        <div><label>Hasta (Dashboard)</label><input type="date" id="db-hasta" oninput="renderDashboard()"></div>
+        <div class="flex" style="align-items:flex-end"><span class="muted">Filtra KPIs, gráficas y totales por rango</span></div>
+      </div>
+
+      <div class="kpi" id="kpi-cards"></div>
+    </section>
+
+    <div class="grid g2" style="margin-top:12px">
+      <section class="card">
+        <h3>Ventas por día (rango)</h3>
+        <canvas id="chVentas"></canvas>
+      </section>
+      <section class="card">
+        <h3>Métodos de pago (rango)</h3>
+        <canvas id="chMetodos"></canvas>
+      </section>
+      <section class="card">
+        <h3>Ventas por categoría (rango)</h3>
+        <canvas id="chCategorias"></canvas>
+      </section>
+      <section class="card">
+        <h3>Gastos por categoría (rango)</h3>
+        <canvas id="chGastos"></canvas>
+      </section>
+    </div>
+
+    <div class="grid g2" style="margin-top:12px">
+      <section class="card">
+        <h3>Top 3 productos (rango)</h3>
+        <canvas id="chTop3"></canvas>
+      </section>
+      <section class="card">
+        <h3>Ventas por día de semana (rango)</h3>
+        <canvas id="chDow"></canvas>
+      </section>
+    </div>
+
+    <div class="grid g2" style="margin-top:12px">
+      <section class="card">
+        <h3>Ventas por canal (rango)</h3>
+        <canvas id="chCanal"></canvas>
+      </section>
+    </div>
+
+    <div class="grid g2" style="margin-top:12px">
+      <section class="card">
+        <h3>Pagado vs Saldo (rango)</h3>
+        <canvas id="chPagadoSaldo"></canvas>
+      </section>
+      <section class="card">
+        <h3>Ticket promedio por día (rango)</h3>
+        <canvas id="chTicketProm"></canvas>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:12px">
+      <h3>Próximas entregas (siguientes 24 h)</h3>
+      <table id="tabla-entregas-proximas">
+        <thead><tr><th>Folio</th><th>Cliente</th><th>Fecha/Hora</th><th>Método</th><th>Estatus</th><th>Notas</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </section>
+
+  <!-- VENTAS -->
+  <section id="tab-ventas" class="tab hidden">
+    <section class="card">
+      <div class="grid g6">
+        <div>
+          <label>Cliente</label>
+          <div class="flex ac-wrap">
+            <input id="v-cliente" list="dl-clientes" placeholder="Buscar / escribir nombre o últimos 4 del teléfono" autocomplete="off">
+            <datalist id="dl-clientes"></datalist>
+            <button class="btn alt" onclick="agregarClienteRapido()">+ Cliente</button>
+            <div id="v-cliente-suggest" class="ac-list hidden"></div>
+          </div>
+        </div>
+        <div>
+          <label>Canal</label>
+          <select id="v-canal" required>
+            <option value="" disabled selected>— Selecciona —</option>
+            <option>Whatsapp</option>
+            <option>Facebook</option>
+            <option>Instagram</option>
+            <option>Telefono</option>
+          </select>
+        </div>
+        
+        <div>
+          <label>Método de envío</label>
+          <select id="envio-metodo" required>
+            <option value="" disabled selected>— Selecciona —</option>
+            <option>A domicilio</option>
+            <option>Recogen en Better</option>
+            <option>Recogen en Lomas</option>
+            <option>Recogen en Atzala</option>
+          </select>
+        </div>
+        <div>
+          <label>Status de pago</label>
+          <select id="v-estatus-pago-top" required>
+            <option value="" disabled selected>— Selecciona —</option>
+            <option value="por_cobrar">Por Cobrar</option>
+            <option value="pagado">Pagado</option>
+          </select>
+        </div>
+        <div>
+          <label>Método de pago</label>
+          <select id="v-metodo-pago-top" required></select>
+        </div>
+        <div>
+          <label>Fecha de venta</label>
+          <input id="v-fecha-venta" type="datetime-local">
+        </div>
+        <div>
+          <label>Estatus de entrega</label>
+          <select id="v-estatus-entrega-top" required>
+            <option value="" disabled selected>— Selecciona —</option>
+            <option>Por preparar</option>
+            <option>Listo</option>
+            <option>En camino</option>
+            <option>Entregado</option>
+            <option>Cancelado</option>
+          </select>
+        </div>
+        
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="grid g3">
+        <div class="ac-wrap">
+          <label>Buscar producto rápido</label>
+          <input id="p-buscar-rapido" placeholder="Ej. conejito chico / lotus mini" autocomplete="off">
+          <div id="p-suggest" class="ac-list hidden"></div>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="grid g3">
+        <div>
+          <label>Categoría</label>
+          <select id="p-cat" required onchange="renderProductos()"></select>
+        </div>
+        <div>
+          <label>Producto</label>
+          <select id="p-prod" required onchange="renderVariantes()"></select>
+        </div>
+        <div>
+          <label>Tamaño / Variante</label>
+          <select id="p-var" required onchange="syncPrecio()"></select>
+        </div>
+      </div>
+
+      <div class="grid g3" style="margin-top:6px">
+        <div>
+          <label>Precio unitario</label>
+          <input type="number" id="p-precio" min="0" step="0.01">
+          <small class="muted">Los admin pueden modificar precio</small>
+        </div>
+        <div>
+          <label>Cantidad</label>
+          <input type="number" id="p-cant" min="1" value="1" step="1">
+        </div>
+        <div class="flex" style="align-items:flex-end">
+          <button class="btn primary" onclick="addItem()">Agregar a venta</button>
+          <span class="muted">⌘K para búsqueda global</span>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <div>
+        <table id="tabla-items">
+          <thead>
+            <tr><th>Producto</th><th>Tamaño</th><th class="right">P. Unit</th><th class="right">Cant</th><th class="right">Total</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="totals compact" style="margin-top:8px; grid-template-columns:repeat(3,1fr)">
+        <div><b>Subtotal</b><div id="t-subtotal" class="right">$0.00</div></div>
+        <div>
+          <label>Descuento</label>
+          <input id="t-descuento" type="number" min="0" step="0.01" value="0" oninput="recalc()" style="max-width:140px">
+        </div>
+        <div><b>Total</b><div id="t-total" class="right">$0.00</div></div>
+      </div>
+
+      <div class="grid g2" style="margin-top:12px">
+        <section class="card">
+          <h3>Pagos</h3>
+          <div class="grid g3" style="margin-bottom:8px">
+            <div>
+              <label>Estatus de pago</label>
+              <select id="v-estatus-pago" required>
+                <option value="" disabled selected>— Selecciona —</option>
+                <option value="por_cobrar">Por Cobrar</option>
+                <option value="pagado">Pagado</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid g3">
+            <div>
+              <label>Método</label>
+              <select id="pago-metodo"></select>
+            </div>
+            <div>
+              <label>Monto</label>
+              <input id="pago-monto" type="number" min="0" step="0.01">
+            </div>
+            <div class="flex" style="align-items:flex-end">
+              <button class="btn alt" onclick="addPago()">Agregar pago</button>
+            </div>
+          </div>
+          <table id="tabla-pagos" style="margin-top:10px">
+            <thead><tr><th>Fecha</th><th>Método</th><th class="right">Monto</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div class="flex" style="margin-top:6px">
+            <span class="pill">Pagado: <b id="pagado">$0.00</b></span>
+            <span class="pill">Saldo: <b id="saldo">$0.00</b></span>
+          </div>
+        </section>
+
+        <section class="card">
+          <h3>Entrega</h3>
+          <div class="grid g2">
+            <div>
+              <label>Método de envío</label>
+              <input value="(selecciona arriba)" disabled>
+            </div>
+            <div>
+              <label>Fecha/Hora</label>
+              <input id="entrega-fecha" type="datetime-local">
+            </div>
+          </div>
+          <label>Dirección (si aplica)</label>
+          <input id="entrega-dir" placeholder="Calle, número, colonia, CP">
+          <label>Notas</label>
+          <textarea id="v-notas" rows="2" placeholder="Mensaje para producción o cliente"></textarea>
+          <div style="margin-top:6px">
+            <span class="tag">Estatus pago: <b id="estatus-pago">Por Cobrar</b></span>
+            <span class="tag">Estatus entrega: <b id="estatus-entrega">Por preparar</b></span>
+          </div>
+        </section>
+      </div>
+
+      <div class="sticky-actions flex">
+        <div class="toolbar">
+          <button class="btn primary" onclick="guardarVenta()">Guardar venta</button>
+          <button class="btn alt" onclick="imprimirTicket()">Imprimir ticket</button>
+          <button class="btn ghost" onclick="whatsappShare()">Compartir WhatsApp</button>
+        </div>
+        <div class="flex" style="margin-left:auto">
+          <button class="btn ghost" onclick="nuevaVenta()">Limpiar</button>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <h3>Ventas recientes</h3>
+      <div class="grid g6">
+        <div><label>Desde</label><input type="date" id="f-desde" oninput="renderVentasRecientes()"></div>
+        <div><label>Hasta</label><input type="date" id="f-hasta" oninput="renderVentasRecientes()"></div>
+        <div><label>Cliente</label><input id="f-cliente" placeholder="Filtrar por nombre" oninput="renderVentasRecientes()"></div>
+        <div>
+          <label>Canal</label>
+          <select id="f-canal" onchange="renderVentasRecientes()"></select>
+        </div>
+        <div>
+          <label>Método de envío</label>
+          <select id="f-envio" onchange="renderVentasRecientes()"></select>
+        </div>
+        <div>
+          <label>Status de pago</label>
+          <select id="f-estatus" onchange="renderVentasRecientes()"></select>
+        </div>
+        <div>
+          <label>Método de pago</label>
+          <select id="f-mp" onchange="renderVentasRecientes()"></select>
+        </div>
+        <div>
+          <label>Estatus de entrega</label>
+          <select id="f-entrega" onchange="renderVentasRecientes()"></select>
+        </div>
+      </div>
+      <table id="tabla-ventas" style="margin-top:8px">
+        <thead><tr><th>Folio</th><th>Fecha</th><th>Cliente</th><th>Canal</th><th>Envío</th><th>Status de pago</th><th>Método pago</th><th class="right">Total</th><th class="right">Saldo</th><th>Entrega</th><th>Acciones</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </section>
+
+  <!-- CLIENTES -->
+  <section id="tab-clientes" class="tab hidden">
+    <section class="card">
+      <div class="grid g3">
+        <div><label>Nombre</label><input id="c-nombre"></div>
+        <div><label>Teléfono</label><input id="c-tel"></div>
+        <div><label>Dirección</label><input id="c-dir" placeholder="Calle, número, colonia, CP"></div>
+      </div>
+      <label>Notas</label><input id="c-notas">
+      <div class="toolbar" style="margin-top:8px">
+        <button class="btn primary" onclick="guardarCliente()">Guardar</button>
+        <button class="btn ghost" onclick="limpiarCliente()">Limpiar</button>
+        <button class="btn alt" onclick="exportarCSVClientes()">Exportar CSV</button>
+      </div>
+      <div class="hr"></div>
+      <div class="grid g3">
+        <div><label>Buscar</label><input id="c-buscar" oninput="renderClientes()"></div>
+        <div><label>Ordenar</label>
+          <select id="c-orden" onchange="renderClientes()">
+            <option value="nombre">Nombre</option>
+            <option value="total">Total comprado</option>
+            <option value="ultima">Última compra</option>
+          </select>
+        </div>
+      </div>
+      <table id="tabla-clientes" style="margin-top:8px">
+        <thead><tr><th>Nombre</th><th>Teléfono</th><th>Dirección</th><th class="right">Total</th><th>Última compra</th><th>Acciones</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </section>
+
+  <!-- PRODUCTOS -->
+  <section id="tab-productos" class="tab hidden">
+    <section class="card">
+      <div class="toolbar">
+        <button class="btn alt" onclick="abrirImportador()">Importar precios (CSV rápido)</button>
+        <button class="btn ghost" onclick="exportarJSON()">Backup JSON</button>
+        <button class="btn ghost" onclick="importarJSON()">Restaurar JSON</button>
+      </div>
+      <p class="muted">Formato CSV: <code>categoria,producto,variacion,precio</code> (ej.: <em>Pasteles,Pastel Conejito,CH,340</em>).</p>
+      <div id="importador" class="hidden">
+        <textarea id="csv" rows="5" class="narrow" placeholder="Pega aquí tu CSV"></textarea>
+        <div class="toolbar"><button class="btn primary" onclick="procesarCSV()">Cargar</button> <button class="btn ghost" onclick="cerrarImportador()">Cerrar</button></div>
+      </div>
+      <div class="grid g3" style="margin-top:10px">
+        <div><label>Categoría</label><select id="fpcat" onchange="renderTablaProductos()"></select></div>
+        <div><label>Buscar</label><input id="fpq" oninput="renderTablaProductos()"></div>
+        <div><label>Solo activos</label>
+          <select id="fpact" onchange="renderTablaProductos()">
+            <option value="todos">Todos</option>
+            <option value="activos">Activos</option>
+            <option value="inactivos">Inactivos</option>
+          </select>
+        </div>
+      </div>
+      <table id="tabla-productos" style="margin-top:8px">
+        <thead><tr><th>Producto</th><th>Variante</th><th class="right">Precio</th><th>Activo</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </section>
+
+  <!-- COTIZADOR -->
+  <section id="tab-cotizador" class="tab hidden">
+    <section class="card">
+      <div class="flex" style="justify-content:space-between; align-items:center">
+        <h3 style="margin:0">Materiales (insumos)</h3>
+        <button class="btn alt" onclick="cargarDemoConejitoMini()">Cargar demo “Conejito mini”</button>
+      </div>
+      <div class="grid g4">
+        <div><label>Nombre</label><input id="ct-mt-nombre" placeholder="Ej. Conejitos 20 pzas (bote)"></div>
+        <div><label>Unidad (presentación)</label>
+          <select id="ct-mt-unidad">
+            <option value="pieza">Pieza</option>
+            <option value="gramo">Gramo</option>
+            <option value="kilogramo">Kilogramo</option>
+            <option value="mililitro">Mililitro</option>
+            <option value="litro">Litro</option>
+          </select>
+        </div>
+        <div><label>Contenido por presentación</label><input id="ct-mt-contenido" type="number" min="0" step="0.01" placeholder="Ej. 20"></div>
+        <div><label>Costo presentación</label><input id="ct-mt-costo" type="number" min="0" step="0.01" placeholder="Ej. 200"></div>
+      </div>
+      <div class="toolbar" style="margin-top:8px">
+        <button class="btn primary" onclick="guardarMaterial()">Guardar material</button>
+        <button class="btn ghost" onclick="limpiarMaterial()">Limpiar</button>
+      </div>
+      <div class="grid g4" style="margin-top:8px">
+        <div><label>Buscar material</label><input id="ct-mt-q" placeholder="Nombre o parte" oninput="renderMateriales()"></div>
+        <div><label>Filtrar por unidad</label>
+          <select id="ct-mt-q-unit" onchange="renderMateriales()">
+            <option value="">(todas)</option>
+            <option value="pieza">Pieza</option>
+            <option value="gramo">Gramo</option>
+            <option value="kilogramo">Kilogramo</option>
+            <option value="mililitro">Mililitro</option>
+            <option value="litro">Litro</option>
+          </select>
+        </div>
+      </div>
+      <table id="tabla-materiales" style="margin-top:8px">
+        <thead><tr><th>Material</th><th>Unidad</th><th>Contenido presentación</th><th class="right">Costo presentación</th><th class="right">Costo por unidad</th><th>Acciones</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h3>Recetas</h3>
+      <div class="grid g4">
+        <div><label>Producto</label><input id="ct-r-nombre" placeholder="Ej. Pastel Conejito CH"></div>
+        <div><label>Rendimiento</label><input id="ct-r-rinde" type="number" min="1" step="1" value="1"></div>
+        <div><label>Unidad de venta</label><input id="ct-r-uv" placeholder="Ej. pieza / rebanada / paquete x n"></div>
+        <div><label>Precio venta</label><input id="ct-r-precio" type="number" min="0" step="0.01"></div>
+      </div>
+      <div class="grid g4" style="margin-top:8px">
+        <div><label>Material</label><select id="ct-r-mat"></select></div>
+        <div><label>Cantidad</label><input id="ct-r-cant" type="number" min="0" step="0.01"></div>
+        <div class="flex" style="align-items:flex-end"><button class="btn alt" onclick="addIngredienteReceta()" id="ct-r-add-btn">Agregar ingrediente</button></div>
+      </div>
+      <table id="tabla-receta-it" style="margin-top:8px">
+        <thead><tr><th>Material</th><th>Cantidad</th><th>Unidad</th><th class="right">Costo unit</th><th class="right">Costo</th><th>Acciones</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="grid g3 totals compact" style="margin-top:8px;grid-template-columns:repeat(3,1fr)">
+        <div><b>Total piezas</b><div id="ct-tot-pz" class="right"></div></div>
+        <div><b>Total gr/ml</b><div id="ct-tot-gr" class="right"></div></div>
+        <div><b>Indirectos</b><div id="ct-ci-total" class="right"></div></div>
+      </div>
+
+      <section class="card" style="margin-top:8px">
+        <h3>Costos indirectos</h3>
+        <div class="grid g3">
+          <div><label>Concepto</label><input id="ct-ci-conc" placeholder="Ej. Gas, luz, m.o."></div>
+          <div><label>Monto (MXN)</label><input id="ct-ci-monto" type="number" min="0" step="0.01"></div>
+          <div class="flex" style="align-items:flex-end"><button class="btn alt" onclick="addCostoIndirecto()">Agregar costo</button></div>
+        </div>
+        <table id="ct-indirectos" style="margin-top:8px">
+          <thead><tr><th>Concepto</th><th class="right">Monto</th><th>Acciones</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <div class="totals compact" style="margin-top:8px;grid-template-columns:repeat(3,1fr)">
+        <div><b>Costo receta</b><div id="ct-r-costo" class="right"></div></div>
+        <div><b>Costo por unidad de venta</b><div id="ct-r-costo-unit" class="right"></div></div>
+        <div><b>Precio venta</b><div id="ct-r-precio-out" class="right"></div></div>
+      </div>
+      <div class="totals compact" style="margin-top:8px;grid-template-columns:repeat(2,1fr)">
+        <div><b>Margen neto</b><div id="ct-r-margen-neto" class="right"></div></div>
+        <div><b>Costo marginal (%)</b><div id="ct-r-costo-marg" class="right"></div></div>
+      </div>
+      <div style="margin-top:8px" class="card"><h3>Distribución de costo</h3><canvas id="ct-ch-distrib"></canvas></div>
+      <div class="toolbar" style="margin-top:8px">
+        <button class="btn primary" onclick="guardarReceta()">Guardar receta</button>
+        <button class="btn ghost" onclick="nuevaReceta()">Limpiar receta</button>
+        <button class="btn ghost" onclick="importarJSONReceta()">Importar receta</button>
+      </div>
+      <div class="hr"></div>
+      <h3>Recetas guardadas</h3>
+      <table id="tabla-recetas">
+        <thead><tr><th>Producto</th><th class="right">Costo</th><th class="right">Precio</th><th class="right">Margen</th><th>Acciones</th></tr></thead>
+        <tbody></tbody>
+      </table>
+
+      <div class="grid g3" style="margin-top:10px">
+        <div><label>Alergias</label><textarea id="ct-r-alergias" rows="2" placeholder="Ej. contiene gluten, nuez, lácteos"></textarea></div>
+        <div><label>Preparado por / Puesto</label><input id="ct-r-prep" placeholder="Nombre"/><input id="ct-r-prep-puesto" placeholder="Puesto"/></div>
+        <div><label>Aprobado por / Puesto</label><input id="ct-r-apr" placeholder="Nombre"/><input id="ct-r-apr-puesto" placeholder="Puesto"/></div>
+      </div>
+    </section>
+  </section>
+
+  <!-- GASTOS -->
+  <section id="tab-gastos" class="tab hidden">
+    <section class="card">
+      <div class="grid g3">
+        <div><label>Fecha</label><input id="g-fecha" type="date"></div>
+        <div><label>Categoría</label>
+          <select id="g-cat"></select>
+        </div>
+        <div><label>Método</label>
+          <select id="g-metodo"></select>
+        </div>
+      </div>
+      <div class="grid g2">
+        <div><label>Proveedor</label><input id="g-prov" list="dl-proveedores"><datalist id="dl-proveedores"></datalist></div>
+        <div><label>Monto</label><input id="g-monto" type="number" min="0" step="0.01"></div>
+      </div>
+      <label>Descripción</label><input id="g-desc" placeholder="Ej. empaques, mantequilla, etc.">
+      <div class="toolbar" style="margin-top:8px">
+        <button class="btn primary" onclick="guardarGasto()">Guardar gasto</button>
+        <button class="btn ghost" onclick="renderGastos()">Actualizar</button>
+        <button class="btn alt" onclick="exportarCSVGastos()">Exportar CSV</button>
+      </div>
+      <div class="hr"></div>
+      <div class="grid g3">
+        <div><label>Desde</label><input type="date" id="fg-desde" oninput="renderGastos()"></div>
+        <div><label>Hasta</label><input type="date" id="fg-hasta" oninput="renderGastos()"></div>
+        <div><label>Proveedor</label><input id="fg-prov" oninput="renderGastos()" placeholder="Nombre o parte"></div>
+      </div>
+      <div class="grid g4" style="margin-top:8px">
+        <div><label>Categoría</label>
+          <select id="fg-cat" onchange="renderGastos()"></select>
+        </div>
+        <div><label>Método</label>
+          <select id="fg-metodo" onchange="renderGastos()"></select>
+        </div>
+        <div><label>Buscar</label>
+          <input id="fg-q" oninput="renderGastos()" placeholder="Descripción / proveedor">
+        </div>
+        <div class="flex" style="align-items:flex-end">
+          <button class="btn ghost" onclick="fijarMesActualGastos()">Mes actual</button>
+        </div>
+      </div>
+      <table id="tabla-gastos" style="margin-top:8px">
+        <thead><tr><th>Fecha</th><th>Categoría</th><th>Proveedor</th><th>Descripción</th><th class="right">Monto</th><th>Acciones</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div id="gastos-resumen" style="margin-top:8px" class="muted"></div>
+    </section>
+  </section>
+
+  <!-- REPORTES -->
+  <section id="tab-reportes" class="tab hidden">
+    <section class="card">
+      <div class="grid g4">
+        <div><label>Desde</label><input type="date" id="r-desde"></div>
+        <div><label>Hasta</label><input type="date" id="r-hasta"></div>
+        <div><label>Cliente</label><input id="r-cliente" placeholder="Nombre (opcional)"></div>
+        <div>
+          <label>Tipo de reporte</label>
+          <select id="r-tipo">
+            <option value="resumen">Resumen (ingresos, gastos, utilidad)</option>
+            <option value="ventas">Ventas – detalle</option>
+            <option value="gastos">Gastos – detalle</option>
+            <option value="ventas_canal">Ventas por canal</option>
+            <option value="ventas_sucursal">Ventas por sucursal</option>
+            <option value="ventas_mp">Ventas por método de pago</option>
+            <option value="ventas_estatus">Ventas por estatus de pago</option>
+            <option value="ventas_categoria">Ventas por categoría</option>
+            <option value="top_productos">Top productos</option>
+            <option value="corte_caja">Corte de caja (rango)</option>
+          </select>
+        </div>
+      </div>
+      <div class="toolbar" style="margin-top:8px">
+        <button class="btn primary" onclick="generarReporte()">Generar</button>
+        <button class="btn alt" onclick="exportarCSVVentas()">Exportar ventas CSV</button>
+        <button class="btn ghost" onclick="exportarCSVGastos()">Exportar gastos CSV</button>
+      </div>
+      <div id="reporte-out" style="margin-top:10px"></div>
+    </section>
+  </section>
+
+  <!-- CONFIG -->
+  <section id="tab-config" class="tab hidden">
+    <section class="card narrow">
+      <div class="grid g3">
+        <div><label>Nombre del negocio</label><input id="cfg-nombre" placeholder="Ej. Panera Signature"></div>
+        <div><label>Prefijo folio</label><input id="cfg-prefijo" value="PAN"></div>
+        <div><label>Auto-imprimir ticket al guardar</label>
+          <select id="cfg-autoprint">
+            <option value="no">No</option>
+            <option value="si">Sí</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid g2" style="margin-top:10px">
+        <div>
+          <label>Métodos de pago (ventas)</label>
+          <input id="cfg-mp-ventas" placeholder="Por definir,Efectivo,Transferencia,Tarjeta">
+          <small class="muted">Separados por coma. El primero será el predeterminado.</small>
+        </div>
+        <div>
+          <label>Métodos de pago (gastos)</label>
+          <input id="cfg-mp-gastos" placeholder="Efectivo,Tarjeta,Transferencia,Cortesía">
+        </div>
+      </div>
+      <div class="grid g3" style="margin-top:10px">
+        <div><label>Colores (UI)</label><input value="#C3D8E0" disabled></div>
+      </div>
+      <div class="toolbar" style="margin-top:10px">
+        <button class="btn primary" onclick="guardarConfig()">Guardar configuración</button>
+        <button class="btn ghost" onclick="resetearTodo()">Borrar todo (peligro)</button>
+      </div>
+    </section>
+  </section>
+
+  <!-- CALENDARIO / TENDENCIAS -->
+  <section id="tab-calendario" class="tab hidden">
+    <section class="card">
+      <h3>Calendario de eventos y tendencias</h3>
+      <div class="grid g4">
+        <div><label>Evento</label><input id="ev-nombre" placeholder="Ej. Día de las Madres"></div>
+        <div><label>Fecha</label><input id="ev-fecha" type="date"></div>
+        <div><label>Relevante</label>
+          <select id="ev-rel">
+            <option>No</option>
+            <option>Sí</option>
+          </select>
+        </div>
+        <div class="flex" style="align-items:flex-end"><button class="btn primary" onclick="agregarEvento()">Agregar evento</button></div>
+      </div>
+      <div class="grid g4" style="margin-top:8px">
+        <div><label>Año</label><input id="ev-year" type="number" min="2020" max="2100"></div>
+        <div><label>Plantilla</label>
+          <select id="ev-template">
+            <option value="mx">Marketing MX</option>
+          </select>
+        </div>
+        <div class="flex" style="align-items:flex-end"><button class="btn alt" onclick="seedMarketingCalendar()">Cargar calendario marketing</button></div>
+      </div>
+      <div class="grid g2" style="margin-top:12px">
+        <section class="card">
+          <div class="flex" style="justify-content:space-between;align-items:center">
+            <h3 style="margin:0" id="cal-title">Vista mensual</h3>
+            <div class="flex">
+              <button class="btn ghost" onclick="navMes(-1)">◀</button>
+              <button class="btn ghost" onclick="navMes(1)">▶</button>
+            </div>
+          </div>
+          <div id="cal-grid" class="grid g7" style="margin-top:8px"></div>
+        </section>
+        <section class="card">
+          <h3>Próximos eventos</h3>
+          <table id="tabla-eventos">
+            <thead><tr><th>Fecha</th><th>Evento</th><th>Relevante</th><th class="right">Días</th><th>Acciones</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </section>
+      </div>
+    </section>
+  </section>
+
+  <footer><span id="footer-brand">Panera Signature</span>.</footer>
+</div>
+
+<script>
+/* ==============================
+   Panera Signature · Control de Pasteles
+   ============================== */
+
+/*******************************
+ * SEED Y CATÁLOGOS BÁSICOS
+ *******************************/
+const METODOS_DEFAULT_GASTOS = ["Efectivo","Tarjeta","Transferencia","Cortesía"]; // GASTOS (default)
+const METODOS_DEFAULT_VENTAS = ["Por definir","Efectivo","Transferencia","Tarjeta"];     // VENTAS (default)
+const GASTO_CATS = ["Ingredientes","Empaques","Nómina","Renta","Servicios","Publicidad","Transporte","Mantenimiento","Varios"];
+const CANALES = ["Whatsapp","Facebook","Instagram","Telefono"];
+const ESTATUS_ENTREGA = ["Por preparar","Listo","En camino","Entregado","Cancelado"];
+const DOW_ES = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+
+/* ==============================
+   Tema (claro/oscuro) + Charts
+   ============================== */
+function getPreferredTheme(){
+  try{
+    const saved = localStorage.getItem('panera.theme');
+    if(saved==='dark' || saved==='light') return saved;
+  }catch(e){}
+  return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+}
+function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function toRgba(hex, a){
+  const m = (hex||'').match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i); if(!m) return hex||'#000';
+  const r=parseInt(m[1],16), g=parseInt(m[2],16), b=parseInt(m[3],16); return `rgba(${r},${g},${b},${a})`;
+}
+function chartPalette(){
+  return [cssVar('--p-blue')||'#66B6CC', cssVar('--p-deep')||'#2B4E59', cssVar('--ok')||'#16a34a', cssVar('--warn')||'#f59e0b', cssVar('--err')||'#dc2626', '#8b5cf6'];
+}
+function themeCharts(){
+  if(typeof Chart==='undefined') return;
+  const ink = cssVar('--ink') || '#111827';
+  const grid = cssVar('--p-light') || '#e5e7eb';
+  Chart.defaults.color = ink;
+  Chart.defaults.borderColor = grid;
+  Chart.defaults.font = { family:'Montserrat,system-ui,Segoe UI,Roboto,Helvetica,Arial' };
+}
+function updateThemeToggleIcon(){
+  const isDark = (document.documentElement.getAttribute('data-theme')||'')==='dark';
+  const sun = document.getElementById('icon-sun'); const moon = document.getElementById('icon-moon');
+  if(sun&&moon){ sun.style.display = isDark? 'none':'inline-block'; moon.style.display = isDark? 'inline-block':'none'; }
+}
+function setTheme(theme){
+  const t = (theme==='dark')? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', t);
+  try{ localStorage.setItem('panera.theme', t); }catch(e){}
+  themeCharts();
+  updateThemeToggleIcon();
+  refreshChartsForTheme();
+}
+function toggleTheme(){
+  const curr = document.documentElement.getAttribute('data-theme') || getPreferredTheme();
+  setTheme(curr==='dark' ? 'light' : 'dark');
+}
+window._charts = window._charts || [];
+function refreshChartsForTheme(){
+  if(typeof Chart==='undefined') return;
+  const pal = chartPalette();
+  const grid = toRgba(cssVar('--p-light')||'#e5e7eb', .6);
+  (window._charts||[]).forEach(ch=>{
+    try{
+      const type = ch.config.type;
+      const ds = (ch.data && ch.data.datasets && ch.data.datasets[0]) ? ch.data.datasets[0] : null;
+      if(type==='line' && ds){ ds.borderColor = pal[0]; ds.backgroundColor = toRgba(pal[0], .15);
+        if(ch.options?.scales?.y){ ch.options.scales.y.grid = ch.options.scales.y.grid || {}; ch.options.scales.y.grid.color = grid; }
+        if(ch.options?.scales?.x){ ch.options.scales.x.grid = ch.options.scales.x.grid || {}; ch.options.scales.x.grid.display = false; }
+      }
+      if(type==='bar' && ds){ ds.backgroundColor = pal[1];
+        if(ch.options?.scales?.y){ ch.options.scales.y.grid = ch.options.scales.y.grid || {}; ch.options.scales.y.grid.color = grid; }
+        if(ch.options?.scales?.x){ ch.options.scales.x.grid = ch.options.scales.x.grid || {}; ch.options.scales.x.grid.display = false; }
+      }
+      if(type==='doughnut' && ds){ const len = (ds.data||[]).length; ds.backgroundColor = Array.from({length:len}, (_,i)=> pal[i%pal.length]); }
+      ch.update('none');
+    }catch(e){}
+  });
+}
+
+/*******************************
+ * AUTH (LOGIN SIMPLE)
+ *******************************/
+const AUTH_USER = "panera";
+const AUTH_PASS = "panque";
+const AUTH_KEY = "panera.auth.v1";
+const AUTH_BASIC = btoa(`${AUTH_USER}:${AUTH_PASS}`);
+
+function isAuthed(){ return localStorage.getItem(AUTH_KEY) === "ok"; }
+function setAuth(ok){ if(ok){ localStorage.setItem(AUTH_KEY, "ok"); } else { localStorage.removeItem(AUTH_KEY); } }
+function updateAuthUI(){
+  const btn = document.getElementById("logout-btn");
+  if(btn) btn.classList.toggle("hidden", !isAuthed());
+}
+function showAuth(){
+  const screen = document.getElementById("auth-screen");
+  if(screen){ screen.classList.remove("hidden"); screen.setAttribute("aria-hidden","false"); }
+  document.body.classList.add("auth-locked");
+  updateAuthUI();
+  document.getElementById("auth-user")?.focus();
+}
+function hideAuth(){
+  const screen = document.getElementById("auth-screen");
+  if(screen){ screen.classList.add("hidden"); screen.setAttribute("aria-hidden","true"); }
+  document.body.classList.remove("auth-locked");
+  updateAuthUI();
+}
+function handleLogin(e){
+  e.preventDefault();
+  const u = (document.getElementById("auth-user")?.value || "").trim();
+  const p = (document.getElementById("auth-pass")?.value || "").trim();
+  const err = document.getElementById("auth-error");
+  if(u === AUTH_USER && p === AUTH_PASS){
+    setAuth(true);
+    if(err) err.textContent = "";
+    hideAuth();
+  }else{
+    if(err) err.textContent = "Usuario o contrasena incorrecta.";
+  }
+}
+function logout(){
+  setAuth(false);
+  const p = document.getElementById("auth-pass");
+  if(p) p.value = "";
+  showAuth();
+}
+function initAuth(){
+  document.getElementById("auth-form")?.addEventListener("submit", handleLogin);
+  const err = document.getElementById("auth-error");
+  document.getElementById("auth-user")?.addEventListener("input", ()=>{ if(err) err.textContent = ""; });
+  document.getElementById("auth-pass")?.addEventListener("input", ()=>{ if(err) err.textContent = ""; });
+  if(isAuthed()) hideAuth(); else showAuth();
+}
+function authHeaders(){ return { Authorization: `Basic ${AUTH_BASIC}` }; }
+function fillSelectFiltro(id_, arr, labelAll="(todos)"){
+  const s = document.getElementById(id_);
+  if(!s) return;
+  s.innerHTML = `<option value="">${labelAll}</option>` + (arr||[]).map(x=>`<option>${x}</option>`).join("");
+}
+
+function getMetodosVentas(){ return (DB.config && Array.isArray(DB.config.metodosVentas) ? DB.config.metodosVentas : METODOS_DEFAULT_VENTAS).slice(); }
+function getMetodosGastos(){ return (DB.config && Array.isArray(DB.config.metodosGastos) ? DB.config.metodosGastos : METODOS_DEFAULT_GASTOS).slice(); }
+
+const SEED = [
+  {categoria:"Pasteles", producto:"Pastel Flores", variantes:{MINI:220, CH:390, G:620}},
+  {categoria:"Pasteles", producto:"Pastel Tiramisú", variantes:{MINI:190, CH:390, G:620}},
+  {categoria:"Pasteles", producto:"Cheesecake Oreo", variantes:{MINI:190, CH:370, G:590}},
+  {categoria:"Pasteles", producto:"Pastel de Lotus", variantes:{MINI:190, CH:370, G:590}},
+  {categoria:"Pasteles", producto:"Cheesecake Tortuga", variantes:{MINI:190, CH:370, G:590}},
+  {categoria:"Pasteles", producto:"Cheesecake Lotus", variantes:{MINI:190, CH:370, G:590}},
+  {categoria:"Pasteles", producto:"Pastel Ferrero", variantes:{MINI:190, CH:370, G:590}},
+  {categoria:"Pasteles", producto:"Pastel Confeti", variantes:{MINI:170, CH:340, G:540}},
+  {categoria:"Pasteles", producto:"Pastel Coco", variantes:{MINI:170, CH:340, G:540}},
+  {categoria:"Pasteles", producto:"Pastel Baileys", variantes:{MINI:170, CH:340, G:540}},
+  {categoria:"Pasteles", producto:"Pastel Conejito", variantes:{MINI:170, CH:340, G:540}},
+  {categoria:"Pasteles", producto:"Pastel Red Velvet", variantes:{MINI:170, CH:340, G:540}},
+  {categoria:"Pasteles", producto:"Pastel Nutella", variantes:{MINI:160, CH:320, G:520}},
+  {categoria:"Pasteles", producto:"Pastel Kisses", variantes:{MINI:160, CH:320, G:520}},
+  {categoria:"Pasteles", producto:"Pastel Zanahoria", variantes:{MINI:150, CH:300, G:500}},
+  {categoria:"Pasteles", producto:"Pastel Naranja", variantes:{MINI:150, CH:300, G:500}},
+  {categoria:"Pasteles", producto:"Pastel Elote", variantes:{MINI:150, CH:300, G:500}},
+  {categoria:"Panqués", producto:"Panqué de Matcha", variantes:{UNIDAD:360}},
+  {categoria:"Panqués", producto:"Panqué de Avena (choco/almendra/nuez)", variantes:{UNIDAD:260}},
+  {categoria:"Panqués", producto:"Panqué Tradicional (choco/almendra/nuez/plátano)", variantes:{UNIDAD:260}},
+  {categoria:"Brownies", producto:"Brownies caja 9 pzas (nuez/almendra/pistache/oreo/pretzel)", variantes:{"CAJA 9":450}},
+  {categoria:"Gelatinas", producto:"Gelatina de mazapán", variantes:{CH:250, G:350}},
+  {categoria:"Gelatinas", producto:"Gelatina de chocolate", variantes:{CH:250, G:350}},
+  {categoria:"Gelatinas", producto:"Gelatina de fresa", variantes:{CH:250, G:350}},
+  {categoria:"Gelatinas", producto:"Gelatina de piña", variantes:{CH:250, G:350}},
+  {categoria:"Trufas", producto:"Trufas cocoa/oscuro/blanco/con leche (12 pzas)", variantes:{"CAJA 12":260}},
+  {categoria:"Tortugas", producto:"Tortugas (nuez/almendra/oreo/pretzel) 12 pzas", variantes:{"CAJA 12":260}},
+  {categoria:"Para Perritos", producto:"Pastel con galletas", variantes:{UNIDAD:350}},
+  {categoria:"Para Perritos", producto:"Pastel de hueso", variantes:{UNIDAD:260}},
+];
+
+/*******************************
+ * BASE DE DATOS LOCAL
+ *******************************/
+const DB = {
+  config: { prefijo:"PAN", seriePorDia:true },
+  clientes: [],
+  proveedores: [],
+  productos: [],
+  ventas: [],
+  gastos: [],
+  eventos: [],
+  costeo: { materiales: [], recetas: [] },
+  meta: { updatedAt: null }
+};
+
+function normalizeDB(){
+  if(!DB.meta) DB.meta = { updatedAt: null };
+  if(!Array.isArray(DB.clientes)) DB.clientes = [];
+  if(!Array.isArray(DB.proveedores)) DB.proveedores = [];
+  if(!Array.isArray(DB.productos)) DB.productos = [];
+  if(!Array.isArray(DB.ventas)) DB.ventas = [];
+  if(!Array.isArray(DB.gastos)) DB.gastos = [];
+  if(!Array.isArray(DB.eventos)) DB.eventos = [];
+  if(!DB.costeo) DB.costeo = { materiales: [], recetas: [] };
+  if(!Array.isArray(DB.costeo.materiales)) DB.costeo.materiales = [];
+  if(!Array.isArray(DB.costeo.recetas)) DB.costeo.recetas = [];
+  if(!Array.isArray(DB.productos) || DB.productos.length===0){
+    DB.productos = SEED.map(x => ({...x, activo:true}));
+  }
+  if(!DB.config) DB.config = { prefijo:"PAN" };
+  // Defaults de nuevas configuraciones
+  if(DB.config.seriePorDia!==undefined) delete DB.config.seriePorDia;
+  if(!DB.config.nombreNegocio) DB.config.nombreNegocio = 'Panera Signature';
+  if(DB.config.autoPrintTicket===undefined) DB.config.autoPrintTicket = false;
+  if(!Array.isArray(DB.config.metodosVentas)) DB.config.metodosVentas = METODOS_DEFAULT_VENTAS.slice();
+  if(!Array.isArray(DB.config.metodosGastos)) DB.config.metodosGastos = METODOS_DEFAULT_GASTOS.slice();
+}
+
+function loadDB(){
+  const raw = localStorage.getItem("panera.db.v1");
+  if(raw){ try{ Object.assign(DB, JSON.parse(raw)); }catch(e){ console.warn("DB corrupta, se regenera."); } }
+  normalizeDB();
+}
+function saveDB(opts={}){
+  if(!opts.skipMeta){
+    if(!DB.meta) DB.meta = {};
+    DB.meta.updatedAt = new Date().toISOString();
+  }
+  localStorage.setItem("panera.db.v1", JSON.stringify(DB));
+  if(!opts.skipRemote) scheduleRemoteSave();
+}
+
+/*******************************
+ * SYNC BACKEND (NETLIFY)
+ *******************************/
+const REMOTE = {
+  endpoint: "/.netlify/functions/db",
+  timeoutMs: 8000,
+  saveDelay: 800,
+  saveTimer: null,
+  saving: false,
+  pending: false,
+  errorShown: false
+};
+
+function remoteWarn(msg){
+  if(REMOTE.errorShown) return;
+  REMOTE.errorShown = true;
+  toast(msg, "warn");
+}
+function parseTime(val){
+  const t = Date.parse(val || "");
+  return Number.isFinite(t) ? t : 0;
+}
+async function fetchWithTimeout(url, options={}, timeoutMs=REMOTE.timeoutMs){
+  const controller = new AbortController();
+  const id = setTimeout(()=>controller.abort(), timeoutMs);
+  try{
+    return await fetch(url, { ...options, signal: controller.signal });
+  }finally{
+    clearTimeout(id);
+  }
+}
+async function fetchRemoteDB(){
+  try{
+    const res = await fetchWithTimeout(REMOTE.endpoint, { headers: { "Accept":"application/json", ...authHeaders() } });
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return (data && data.db) ? data.db : null;
+  }catch(e){
+    remoteWarn("Backend no disponible; usando modo local.");
+    return null;
+  }
+}
+async function pushRemoteDB(){
+  if(REMOTE.saving){ REMOTE.pending = true; return false; }
+  REMOTE.saving = true;
+  try{
+    const res = await fetchWithTimeout(REMOTE.endpoint, {
+      method: "POST",
+      headers: { "Content-Type":"application/json", ...authHeaders() },
+      body: JSON.stringify({ db: DB })
+    });
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    return true;
+  }catch(e){
+    remoteWarn("No se pudo guardar en backend. Se quedo en local.");
+    return false;
+  }finally{
+    REMOTE.saving = false;
+    if(REMOTE.pending){ REMOTE.pending = false; scheduleRemoteSave(); }
+  }
+}
+function scheduleRemoteSave(){
+  if(REMOTE.saveTimer) clearTimeout(REMOTE.saveTimer);
+  REMOTE.saveTimer = setTimeout(pushRemoteDB, REMOTE.saveDelay);
+}
+function applyRemote(remote){
+  if(!remote || typeof remote !== "object") return;
+  Object.keys(DB).forEach(k=> delete DB[k]);
+  Object.assign(DB, remote);
+  normalizeDB();
+  saveDB({ skipRemote: true, skipMeta: true });
+}
+async function syncRemoteDB(){
+  const remote = await fetchRemoteDB();
+  if(!remote){ scheduleRemoteSave(); return; }
+  const localAt = parseTime(DB.meta && DB.meta.updatedAt);
+  const remoteAt = parseTime(remote.meta && remote.meta.updatedAt);
+  if(remoteAt && (!localAt || remoteAt > localAt)){ applyRemote(remote); return; }
+  if(localAt && (!remoteAt || localAt > remoteAt)){ scheduleRemoteSave(); }
+}
+
+/*******************************
+ * UTILIDADES
+ *******************************/
+const fmt = n => (Number(n||0)).toLocaleString("es-MX", { style:"currency", currency:"MXN" });
+const pad2 = n => String(n).padStart(2,'0');
+const ymd = (d)=>{ const dt = d? new Date(d): new Date(); return `${dt.getFullYear()}-${pad2(dt.getMonth()+1)}-${pad2(dt.getDate())}`; };
+const hoyISO = ()=> ymd(new Date());
+const nowLocalDateTime = ()=>{ const dt = new Date(); return `${dt.getFullYear()}-${pad2(dt.getMonth()+1)}-${pad2(dt.getDate())}T${pad2(dt.getHours())}:${pad2(dt.getMinutes())}`; };
+const fmtLocal = (d)=>{ try{ const dt=new Date(d); return `${dt.getFullYear()}-${pad2(dt.getMonth()+1)}-${pad2(dt.getDate())} ${pad2(dt.getHours())}:${pad2(dt.getMinutes())}`; }catch(e){ return String(d).replace('T',' ').slice(0,16); } };
+const id = () => Math.random().toString(36).slice(2,10);
+const sum = (arr,sel) => arr.reduce((a,x)=>a+(sel?sel(x):x),0);
+
+function nextFolio(){
+  const pf = DB.config.prefijo || "PAN";
+  const key = `folio.consecutive`;
+  let n = Number(localStorage.getItem(key)||0)+1;
+  localStorage.setItem(key, String(n));
+  return `${pf}-${String(n).padStart(4, "0")}`;
+}
+
+// Toast visual simple (success/warn/error)
+function toast(msg, kind="ok", timeout=2400){
+  try{
+    let root = document.querySelector('.toast-wrap');
+    if(!root){ root = document.createElement('div'); root.className='toast-wrap'; document.body.appendChild(root); }
+    const el = document.createElement('div'); el.className = `toast ${kind}`; el.textContent = msg;
+    root.appendChild(el);
+    setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateY(6px)'; el.style.transition='all .2s ease'; }, timeout-200);
+    setTimeout(()=>{ el.remove(); }, timeout);
+  }catch(e){ console.log(msg); }
+}
+
+function getSelectEstatus(){
+  return document.getElementById("v-estatus-pago-top") || document.getElementById("v-estatus-pago");
+}
+function syncEstatusSelects(src){
+  const top = document.getElementById("v-estatus-pago-top");
+  const bottom = document.getElementById("v-estatus-pago");
+  if(!src) return;
+  const val = src.value;
+  if(top && src!==top) top.value = val||"";
+  if(bottom && src!==bottom) bottom.value = val||"";
+  // Sugerir cubrir saldo si marcan "pagado"
+  if(val === 'pagado'){
+    const sub = sum(VENTA.items, it=>it.precio*it.cant);
+    const desc = Number(document.getElementById("t-descuento").value||0);
+    const total = Math.max(0, sub - desc);
+    const pagado = sum(VENTA.pagos, p=>p.monto);
+    const saldo = Math.max(0, total - pagado);
+    if(saldo > 0){
+      const inp = document.getElementById('pago-monto');
+      if(inp){ inp.value = saldo; inp.focus(); }
+      toast('Se llenó el monto con el saldo pendiente.', 'warn');
+    }
+  }
+  recalc();
+}
+
+/*******************************
+ * INICIALIZACIÓN DE UI
+ *******************************/
+function initUI(){
+  // Tabs: ocultar SOLO las secciones de pestaña (no todas las .card internas)
+  document.querySelectorAll("nav button").forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+      localStorage.setItem("panera.activeTab", btn.dataset.tab);
+      document.querySelectorAll("section.tab").forEach(s=>s.classList.add("hidden"));
+      document.getElementById(btn.dataset.tab).classList.remove("hidden");
+      if(btn.dataset.tab==="tab-dashboard") renderDashboard();
+      if(btn.dataset.tab==="tab-calendario"){ renderCalendario(); renderEventos(); }
+      if(btn.dataset.tab==="tab-cotizador"){ renderMateriales(); renderRecetasList(); renderSelectMateriales(); recalcReceta(); }
+    };
+  });
+
+  // Selects base (desde config)
+  fillSelect("pago-metodo", getMetodosVentas());
+  fillSelect("v-metodo-pago-top", getMetodosVentas());
+  fillSelect("g-metodo", getMetodosGastos());
+  fillSelect("g-cat", GASTO_CATS);
+
+  // Filtros de ventas recientes
+  fillSelectFiltro("f-canal", CANALES);
+  fillSelectFiltro("f-envio", ["A domicilio","Recogen en Better","Recogen en Lomas","Recogen en Atzala"]);
+  fillSelectFiltro("f-estatus", ["Pagado","Por Cobrar"]);
+  fillSelectFiltro("f-mp", getMetodosVentas());
+  fillSelectFiltro("f-entrega", ESTATUS_ENTREGA);
+
+  // Filtros de gastos
+  fillSelectFiltro("fg-cat", GASTO_CATS);
+  fillSelectFiltro("fg-metodo", getMetodosGastos());
+
+  // Productos
+  renderCategorias();
+  renderProductos();
+  renderVariantes();
+  syncPrecio();
+
+  // Datalists
+  renderClientesDatalist();
+  renderProveedoresDatalist();
+
+  // Listas
+  renderVentasRecientes();
+  renderClientes();
+  renderTablaProductos();
+  renderGastos();
+  renderDashboard();
+  renderMateriales(); renderRecetasList(); renderSelectMateriales();
+  renderCalendario();
+  renderEventos();
+
+  // Índice de productos para búsqueda rápida
+  rebuildProductIndex();
+
+  // Defaults
+  document.getElementById("g-fecha").value = hoyISO();
+  // Footer brand
+  const fb = document.getElementById('footer-brand'); if(fb) fb.textContent = DB.config.nombreNegocio || 'Panera Signature';
+  // Config UI values
+  const cfgNombre = document.getElementById('cfg-nombre'); if(cfgNombre) cfgNombre.value = DB.config.nombreNegocio || '';
+  const cfgPref = document.getElementById('cfg-prefijo'); if(cfgPref) cfgPref.value = DB.config.prefijo || 'PAN';
+  const cfgAuto = document.getElementById('cfg-autoprint'); if(cfgAuto) cfgAuto.value = DB.config.autoPrintTicket? 'si' : 'no';
+  const cfgMPv = document.getElementById('cfg-mp-ventas'); if(cfgMPv) cfgMPv.value = (DB.config.metodosVentas||[]).join(',');
+  const cfgMPg = document.getElementById('cfg-mp-gastos'); if(cfgMPg) cfgMPg.value = (DB.config.metodosGastos||[]).join(',');
+
+  // Fecha de venta por defecto
+  const fv = document.getElementById("v-fecha-venta");
+  if(fv && !fv.value){
+    const now = new Date(); const pad = n => String(n).padStart(2,"0");
+    fv.value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  }
+
+  // Espejos / sincronizaciones
+  espejoEnvioEnEntrega();
+  document.getElementById("envio-metodo")?.addEventListener("change", espejoEnvioEnEntrega);
+  document.getElementById("v-estatus-pago-top")?.addEventListener("change", (e)=>syncEstatusSelects(e.target));
+  document.getElementById("v-estatus-pago")?.addEventListener("change", (e)=>syncEstatusSelects(e.target));
+  document.getElementById("v-metodo-pago-top")?.addEventListener("change", (e)=>{
+    const val = e.target.value; const pm = document.getElementById("pago-metodo"); if(pm){ pm.value = val; }
+  });
+  document.getElementById("v-estatus-entrega-top")?.addEventListener("change", (e)=>{
+    const v = e.target.value || "Por preparar";
+    const tag = document.getElementById("estatus-entrega");
+    if(tag) tag.textContent = v;
+  });
+
+  // Enter para agregar ítem
+  document.getElementById("p-cant")?.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); addItem(); }});
+
+  // Restaurar pestaña activa
+  const savedTab = localStorage.getItem("panera.activeTab");
+  if(savedTab){
+    const btn = document.querySelector(`nav button[data-tab="${savedTab}"]`);
+    if(btn){ btn.click(); }
+  }
+
+  // Autocomplete cliente (nombre / últimos 4 del tel / dirección)
+  const cliInp = document.getElementById('v-cliente');
+  cliInp?.addEventListener('input', renderSugerenciasCliente);
+  cliInp?.addEventListener('focus', renderSugerenciasCliente);
+  cliInp?.addEventListener('blur', ()=> setTimeout(()=> document.getElementById('v-cliente-suggest')?.classList.add('hidden'), 150));
+
+  // Búsqueda rápida de producto
+  const pr = document.getElementById('p-buscar-rapido');
+  pr?.addEventListener('input', renderSugerenciasProducto);
+  pr?.addEventListener('focus', renderSugerenciasProducto);
+  pr?.addEventListener('blur', ()=> setTimeout(()=> document.getElementById('p-suggest')?.classList.add('hidden'), 150));
+  pr?.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); addItemDesdeBusqueda(); }});
+
+  // Calendario: set año por defecto
+  const yInp = document.getElementById('ev-year');
+  if(yInp){
+    yInp.value = new Date().getFullYear();
+    yInp.addEventListener('change', ()=>{ const yr = Number(yInp.value)||new Date().getFullYear(); CAL_NOW = new Date(yr, CAL_NOW.getMonth(), 1); renderCalendario(); });
+  }
+}
+
+function fillSelect(id_, arr){
+  const s = document.getElementById(id_);
+  if(!s) return;
+  const needsPH = s.hasAttribute('required');
+  const ph = s.dataset.placeholder || '— Selecciona —';
+  s.innerHTML = needsPH ? `<option value="" disabled selected>${ph}</option>` : '';
+  s.innerHTML += (arr||[]).map(x=>`<option>${x}</option>`).join("");
+}
+
+// Espejo visual del método de envío
+function espejoEnvioEnEntrega(){
+  const sel = document.getElementById("envio-metodo");
+  const inputDisabled = document.querySelector('#tab-ventas input[disabled]');
+  if(sel && inputDisabled){ inputDisabled.value = sel.value || "(selecciona arriba)"; }
+}
+
+/*******************************
+ * PRODUCTOS
+ *******************************/
+function categoriasUnicas(){ return [...new Set(DB.productos.map(p=>p.categoria))]; }
+function renderCategorias(){
+  const cats = categoriasUnicas();
+  fillSelect("p-cat", cats);
+  fillSelect("fpcat", ["(todas)", ...cats]);
+}
+function renderProductos(){
+  const cat = document.getElementById("p-cat").value;
+  let prods = [];
+  if(cat){
+    prods = DB.productos.filter(p=>p.categoria===cat && p.activo!==false).map(p=>p.producto);
+  }
+  fillSelect("p-prod", prods);
+  renderVariantes();
+}
+function renderVariantes(){
+  const prodName = document.getElementById("p-prod").value;
+  const prod = DB.productos.find(p=>p.producto===prodName);
+  const vars = prod ? Object.keys(prod.variantes) : [];
+  fillSelect("p-var", vars);
+  syncPrecio();
+}
+function syncPrecio(){
+  const prod = DB.productos.find(p=>p.producto===document.getElementById("p-prod").value);
+  const talla = document.getElementById("p-var").value;
+  const precio = prod?.variantes?.[talla] ?? 0;
+  document.getElementById("p-precio").value = precio;
+}
+
+function renderTablaProductos(){
+  const cat = document.getElementById("fpcat").value;
+  const q = (document.getElementById("fpq").value||"").toLowerCase();
+  const act = document.getElementById("fpact").value;
+  const tb = document.querySelector("#tabla-productos tbody");
+  let rows = [];
+  DB.productos.forEach(p=>{
+    if(cat!=="(todas)" && p.categoria!==cat) return;
+    if(act==="activos" && p.activo===false) return;
+    if(act==="inactivos" && p.activo!==false) return;
+    Object.entries(p.variantes||{}).forEach(([nombre, precio])=>{
+      const text = `${p.producto} ${nombre}`.toLowerCase();
+      if(q && !text.includes(q)) return;
+      rows.push(`<tr>
+        <td>${p.producto}</td>
+        <td>${nombre}</td>
+        <td class="right">${fmt(precio)}</td>
+        <td>
+          <label><input type="checkbox" ${p.activo!==false?"checked":""} onchange="toggleProductoActivo('${p.producto}', this.checked)"> Activo</label>
+        </td>
+      </tr>`);
+    });
+  });
+  tb.innerHTML = rows.join("") || `<tr><td colspan="4" class="muted">Sin resultados</td></tr>`;
+}
+function toggleProductoActivo(prodName, checked){
+  const p = DB.productos.find(x=>x.producto===prodName);
+  if(p){ p.activo = !!checked; saveDB(); rebuildProductIndex(); }
+}
+
+/*******************************
+ * CLIENTES
+ *******************************/
+function upsertClientePorNombre(nombre){
+  const nm = (nombre||"").trim();
+  if(!nm) return { id:"MOSTRADOR", nombre:"Mostrador" };
+  let c = DB.clientes.find(x=>x.nombre.toLowerCase()===nm.toLowerCase());
+  if(!c){ c = { id:id(), nombre:nm, telefono:"", direccion:"", notas:"", creadoEn:new Date().toISOString()}; DB.clientes.push(c); saveDB(); renderClientesDatalist(); }
+  return c;
+}
+function agregarClienteRapido(){
+  const nm = (document.getElementById("v-cliente").value||"").trim();
+  if(!nm){ alert("Escribe el nombre del cliente."); return; }
+  upsertClientePorNombre(nm);
+  toast("Cliente guardado");
+  renderClientes();
+}
+function renderClientesDatalist(){
+  const dl = document.getElementById("dl-clientes");
+  dl.innerHTML = DB.clientes.map(c=>`<option value="${c.nombre}">`).join("");
+}
+
+/* =====================
+   AUTOCOMPLETE CLIENTE
+   ===================== */
+function buscarCoincidenciasCliente(q){
+  const term = (q||"").trim().toLowerCase();
+  if(!term) return [];
+  return DB.clientes.filter(c=>{
+    const nom=(c.nombre||"").toLowerCase();
+    const tel=String(c.telefono||"");
+    const dir=(c.direccion||"").toLowerCase();
+    const last4 = tel.slice(-4);
+    return nom.includes(term) || dir.includes(term) || tel.includes(term) || (term.length>=3 && last4===term);
+  }).slice(0,20);
+}
+function renderSugerenciasCliente(){
+  const el = document.getElementById('v-cliente');
+  const box = document.getElementById('v-cliente-suggest');
+  if(!el||!box) return;
+  const q = el.value;
+  const arr = buscarCoincidenciasCliente(q);
+  if(arr.length===0){ box.classList.add('hidden'); box.innerHTML=''; return; }
+  box.innerHTML = arr.map(c=>`
+    <div class="ac-item" data-id="${c.id}" onclick="selectClienteDesdeAC('${c.id}')">
+      <div class="ac-name">${c.nombre}</div>
+      <div class="ac-meta">${c.telefono||''}<br>${(c.direccion||'').slice(0,48)}</div>
+    </div>`).join('');
+  box.classList.remove('hidden');
+}
+function selectClienteDesdeAC(cid){
+  const c = DB.clientes.find(x=>x.id===cid);
+  const inp = document.getElementById('v-cliente');
+  if(!c||!inp) return;
+  inp.value = c.nombre;
+  inp.dataset.cid = c.id;
+  const dir = document.getElementById('entrega-dir');
+  if(dir && c.direccion){ dir.value = c.direccion; }
+  document.getElementById('v-cliente-suggest')?.classList.add('hidden');
+}
+
+function renderClientes(){
+  const buscar = (document.getElementById("c-buscar")?.value||"").toLowerCase();
+  const orden = document.getElementById("c-orden")?.value||"nombre";
+  const stats = {};
+  DB.ventas.forEach(v=>{
+    const key = v.clienteNombre||"Mostrador";
+    if(!stats[key]) stats[key] = { total:0, ultima:"", count:0 };
+    stats[key].total += v.total;
+    stats[key].count += 1;
+    if(!stats[key].ultima || v.fecha > stats[key].ultima) stats[key].ultima = v.fecha;
+  });
+  const rows = DB.clientes
+    .filter(c=>{
+      if(!buscar) return true;
+      const nom=(c.nombre||"").toLowerCase();
+      const tel=String(c.telefono||"").toLowerCase();
+      const dir=(c.direccion||"").toLowerCase();
+      return nom.includes(buscar)||tel.includes(buscar)||dir.includes(buscar);
+    })
+    .map(c=>({ c, s: stats[c.nombre]||{total:0, ultima:"", count:0} }))
+    .sort((a,b)=>{
+      if(orden==="nombre") return a.c.nombre.localeCompare(b.c.nombre);
+      if(orden==="total") return b.s.total - a.s.total;
+      if(orden==="ultima") return (b.s.ultima||"").localeCompare(a.s.ultima||"");
+      return 0;
+    })
+    .map(({c,s})=>`<tr>
+      <td>${c.nombre}</td>
+      <td>${c.telefono||""}</td>
+      <td>${c.direccion||""}</td>
+      <td class="right">${fmt(s.total)}</td>
+      <td>${s.ultima? s.ultima.slice(0,10):""}</td>
+      <td>
+        <button class="btn alt" onclick="editarCliente('${c.id}')">Editar</button>
+        <button class="btn ghost" onclick="eliminarCliente('${c.id}')">Eliminar</button>
+      </td>
+    </tr>`);
+  document.querySelector("#tabla-clientes tbody").innerHTML = rows.join("") || `<tr><td colspan="6" class="muted">Sin clientes</td></tr>`;
+}
+function guardarCliente(){
+  const nombre = document.getElementById("c-nombre").value.trim();
+  if(!nombre){ alert("Nombre requerido"); return; }
+  const tel = document.getElementById("c-tel").value.trim();
+  const dir = document.getElementById("c-dir").value.trim();
+  const notas = document.getElementById("c-notas").value.trim();
+
+  let c = DB.clientes.find(x=>x.nombre.toLowerCase()===nombre.toLowerCase());
+  if(!c){
+    c = DB.clientes.find(x=> (x.telefono||"")===tel && (x.direccion||"")===dir);
+  }
+  if(!c){ c = { id:id(), creadoEn:new Date().toISOString() }; DB.clientes.push(c); }
+  c.nombre = nombre; c.telefono = tel; c.direccion = dir; c.notas = notas;
+  saveDB(); renderClientesDatalist(); renderClientes();
+  toast("Cliente guardado");
+}
+function limpiarCliente(){ ["c-nombre","c-tel","c-dir","c-notas"].forEach(id=>document.getElementById(id).value=""); }
+function exportarCSVClientes(){
+  const headers = ["Nombre","Telefono","Direccion","Notas"]; 
+  const rows = DB.clientes.map(c=>[c.nombre,c.telefono||"",c.direccion||"",c.notas||""]);
+  descargarCSV([headers,...rows], `clientes_${hoyISO()}.csv`);
+}
+function editarCliente(cid){
+  const c = DB.clientes.find(x=>x.id===cid);
+  if(!c) return;
+  document.querySelector('[data-tab="tab-clientes"]').click();
+  document.getElementById("c-nombre").value = c.nombre || "";
+  document.getElementById("c-tel").value = c.telefono || "";
+  document.getElementById("c-dir").value = c.direccion || "";
+  document.getElementById("c-notas").value = c.notas || "";
+}
+function eliminarCliente(cid){
+  const c = DB.clientes.find(x=>x.id===cid);
+  if(!c) return;
+  if(!confirm(`¿Eliminar al cliente "${c.nombre}"?`)) return;
+  DB.clientes = DB.clientes.filter(x=>x.id!==cid);
+  saveDB(); renderClientesDatalist(); renderClientes();
+  toast("Cliente eliminado");
+}
+
+/*******************************
+ * VENTAS
+ *******************************/
+const VENTA = { items:[], pagos:[] };
+let editingGastoId = null;
+let editingVentaId = null;
+
+function addItem(){
+  const prod = document.getElementById("p-prod").value;
+  const talla = document.getElementById("p-var").value;
+  const precio = Number(document.getElementById("p-precio").value||0);
+  const cant = Number(document.getElementById("p-cant").value||1);
+  if(!prod || !talla || precio<=0 || cant<=0){ alert("Completa producto, talla, precio y cantidad."); return; }
+  VENTA.items.push({ id:id(), prod, talla, precio, cant });
+  renderItems(); recalc();
+}
+function removeItem(i){ VENTA.items.splice(i,1); renderItems(); recalc(); }
+function renderItems(){
+  const tb = document.querySelector("#tabla-items tbody");
+  tb.innerHTML = VENTA.items.map((it,idx)=>`
+    <tr>
+      <td>${it.prod}</td>
+      <td>${it.talla}</td>
+      <td class="right">${fmt(it.precio)}</td>
+      <td class="right">${it.cant}</td>
+      <td class="right">${fmt(it.precio*it.cant)}</td>
+      <td class="right"><button class="btn ghost" onclick="removeItem(${idx})">Quitar</button></td>
+    </tr>`).join("");
+}
+
+function recalc(){
+  const sub = sum(VENTA.items, it=>it.precio*it.cant);
+  const desc = Number(document.getElementById("t-descuento").value||0);
+  const total = Math.max(0, sub - desc);
+
+  document.getElementById("t-subtotal").textContent = fmt(sub);
+  document.getElementById("t-total").textContent = fmt(total);
+
+  const pagado = sum(VENTA.pagos, p=>p.monto);
+  const saldo = Math.max(0, total - pagado);
+  document.getElementById("pagado").textContent = fmt(pagado);
+  document.getElementById("saldo").textContent = fmt(saldo);
+
+  // Mostrar estatus calculado para claridad visual
+  const estadoCalc = (total > 0 && saldo <= 0) ? 'Pagado' : 'Por Cobrar';
+  document.getElementById("estatus-pago").textContent = estadoCalc;
+}
+
+function addPago(){
+  const metodo = document.getElementById("pago-metodo").value;
+  const monto = Number(document.getElementById("pago-monto").value||0);
+  if(monto<=0){ alert("Monto inválido"); return; }
+  VENTA.pagos.push({ fecha:new Date().toISOString(), metodo, monto });
+  renderPagos(); recalc();
+  document.getElementById("pago-monto").value="";
+}
+function removePago(i){ VENTA.pagos.splice(i,1); renderPagos(); recalc(); }
+function renderPagos(){
+  const tb = document.querySelector("#tabla-pagos tbody");
+  tb.innerHTML = VENTA.pagos.map((p,idx)=>`
+    <tr>
+      <td>${p.fecha.slice(0,16).replace("T"," ")}</td>
+      <td>${p.metodo}</td>
+      <td class="right">${fmt(p.monto)}</td>
+      <td class="right"><button class="btn ghost" onclick="removePago(${idx})">Quitar</button></td>
+    </tr>`).join("");
+}
+
+function editarVenta(ventaId){
+  const v = DB.ventas.find(x=>x.id===ventaId);
+  if(!v) return;
+  editingVentaId = v.id;
+  document.querySelector('[data-tab="tab-ventas"]').click();
+
+  document.getElementById("v-cliente").value = v.clienteNombre || "";
+  document.getElementById("v-canal").value = v.canal || "";
+  
+
+  VENTA.items = JSON.parse(JSON.stringify(v.items||[]));
+  VENTA.pagos = JSON.parse(JSON.stringify(v.pagos||[]));
+  renderItems(); renderPagos();
+
+  document.getElementById("t-descuento").value = Number(v.descuento||0);
+  const metodo = v.envioMetodo || v?.entrega?.metodo || (v?.entrega?.tipo||"");
+  if(document.getElementById("envio-metodo") && metodo){ document.getElementById("envio-metodo").value = metodo; }
+  if(document.getElementById("entrega-fecha")) document.getElementById("entrega-fecha").value = v?.entrega?.fecha || "";
+  if(document.getElementById("entrega-dir")) document.getElementById("entrega-dir").value = v?.entrega?.dir || "";
+  espejoEnvioEnEntrega();
+
+  const est = (v.estatusPago||"Por Cobrar").toLowerCase()==="pagado" ? "pagado" : "por_cobrar";
+  const topSel = document.getElementById("v-estatus-pago-top");
+  const botSel = document.getElementById("v-estatus-pago");
+  if(topSel) topSel.value = est;
+  if(botSel) botSel.value = est;
+  document.getElementById("estatus-pago").textContent = (est==="pagado"?"Pagado":"Por Cobrar");
+
+  const estEnt = v.estatusEntrega || "Por preparar";
+  const selEntTop = document.getElementById("v-estatus-entrega-top");
+  if(selEntTop) selEntTop.value = estEnt;
+  const tagEnt = document.getElementById("estatus-entrega");
+  if(tagEnt) tagEnt.textContent = estEnt;
+
+  const fv = document.getElementById("v-fecha-venta");
+  if(fv){
+    const d = v.fecha ? new Date(v.fecha) : new Date(); const pad = n => String(n).padStart(2,"0");
+    fv.value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  const mpTop = document.getElementById("v-metodo-pago-top");
+  if(mpTop){
+    const arr = getMetodosVentas();
+    mpTop.value = (v.pagos && v.pagos[0] ? v.pagos[0].metodo : (arr[0]||''));
+  }
+
+  recalc();
+}
+
+function guardarVenta(){
+  if(VENTA.items.length===0){ alert("Agrega al menos un producto"); return; }
+  const clienteNombre = (document.getElementById("v-cliente").value||"Mostrador").trim();
+  const cliente = upsertClientePorNombre(clienteNombre);
+
+  const fechaVentaInput = document.getElementById("v-fecha-venta")?.value || "";
+  const fechaISO = fechaVentaInput ? fechaVentaInput : nowLocalDateTime();
+  const folio = nextFolio();
+
+  const canal = document.getElementById("v-canal").value;
+  const notas = document.getElementById("v-notas").value;
+  const envioMetodo = document.getElementById("envio-metodo").value;
+  if(!envioMetodo){ alert("Selecciona el método de envío."); document.getElementById("envio-metodo").focus(); return; }
+  if(!canal){ alert("Selecciona el Canal."); document.getElementById("v-canal").focus(); return; }
+  const metodoTopSel = document.getElementById("v-metodo-pago-top");
+  if(!metodoTopSel.value){ alert("Selecciona el Método de pago."); metodoTopSel.focus(); return; }
+
+  const selEstatus = getSelectEstatus();
+  if(!selEstatus || !selEstatus.value){ alert("Selecciona el Status de pago."); selEstatus && selEstatus.focus(); return; }
+
+  const entrega = { metodo: envioMetodo, fecha:document.getElementById("entrega-fecha").value, dir:document.getElementById("entrega-dir").value };
+
+  const sub = sum(VENTA.items, it=>it.precio*it.cant);
+  const desc = Number(document.getElementById("t-descuento").value||0);
+  const total = Math.max(0, sub - desc);
+
+  const metodoPagoTop = document.getElementById("v-metodo-pago-top")?.value || document.getElementById("pago-metodo")?.value || (getMetodosVentas()[0]||"Efectivo");
+
+  const estatusSel = selEstatus.value;
+  let pagadoPrevio = sum(VENTA.pagos, p=>p.monto);
+  if(estatusSel === "pagado" && pagadoPrevio < total){
+    VENTA.pagos.push({ fecha: fechaISO, metodo: metodoPagoTop, monto: Math.max(0, total - pagadoPrevio) });
+  }
+  const pagado = sum(VENTA.pagos, p=>p.monto);
+  const saldo = Math.max(0, total - pagado);
+
+  const estatusEntregaSel = (document.getElementById("v-estatus-entrega-top")?.value || "Por preparar");
+
+  if(editingVentaId){
+    const idx = DB.ventas.findIndex(x=>x.id===editingVentaId);
+    if(idx>-1){
+      const original = DB.ventas[idx];
+      DB.ventas[idx] = {
+        ...original,
+        fecha: fechaISO,
+        clienteId: cliente.id, clienteNombre: cliente.nombre,
+        canal,
+        subtotal: sub, descuento: desc, total, saldo,
+        estatusPago: estatusSel==="pagado"?"Pagado":(saldo<=0?"Pagado":"Por Cobrar"),
+        estatusEntrega: estatusEntregaSel,
+        notas,
+        entrega,
+        envioMetodo,
+        items: JSON.parse(JSON.stringify(VENTA.items)),
+        pagos: JSON.parse(JSON.stringify(VENTA.pagos))
+      };
+      saveDB(); toast("Venta actualizada: "+original.folio);
+    }
+    editingVentaId = null;
+  }else{
+    const venta = {
+      id:id(), folio, fecha: fechaISO,
+      clienteId: cliente.id, clienteNombre: cliente.nombre,
+      canal, subtotal: sub, descuento: desc, total, saldo,
+      estatusPago: estatusSel==="pagado"?"Pagado":(saldo<=0?"Pagado":"Por Cobrar"),
+      estatusEntrega: estatusEntregaSel,
+      notas,
+      entrega, envioMetodo,
+      items: JSON.parse(JSON.stringify(VENTA.items)), pagos: JSON.parse(JSON.stringify(VENTA.pagos))
+    };
+    DB.ventas.unshift(venta); saveDB(); toast("Venta guardada: "+folio);
+    if(DB.config.autoPrintTicket){ try{ imprimirTicket(); }catch(e){} }
+  }
+  nuevaVenta(); renderVentasRecientes(); renderClientes(); renderDashboard();
+}
+
+function nuevaVenta(){
+  VENTA.items = []; VENTA.pagos = [];
+  renderItems(); renderPagos();
+  document.getElementById("t-descuento").value = 0;
+  ["v-notas","entrega-dir"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("entrega-fecha").value = "";
+  document.getElementById("v-cliente").value = "";
+  const topSel = document.getElementById("v-estatus-pago-top");
+  const botSel = document.getElementById("v-estatus-pago");
+  if(topSel) topSel.value = "";
+  if(botSel) botSel.value = "";
+  document.getElementById("estatus-pago").textContent = "Por Cobrar";
+  const fv = document.getElementById("v-fecha-venta");
+  if(fv){
+    const now = new Date(); const pad = n => String(n).padStart(2,"0");
+    fv.value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  }
+  const mpTop = document.getElementById("v-metodo-pago-top");
+  if(mpTop){ mpTop.value = ""; }
+
+  const selEntTop = document.getElementById("v-estatus-entrega-top");
+  if(selEntTop) selEntTop.value = "";
+  const tagEnt = document.getElementById("estatus-entrega");
+  if(tagEnt) tagEnt.textContent = "Por preparar";
+
+  recalc();
+}
+
+function duplicarVenta(ventaId){
+  const v = DB.ventas.find(x=>x.id===ventaId);
+  if(!v) return;
+  VENTA.items = JSON.parse(JSON.stringify(v.items||[]));
+  VENTA.pagos = [];
+  renderItems(); renderPagos();
+  document.querySelector('[data-tab="tab-ventas"]').click();
+  document.getElementById('v-cliente').value = v.clienteNombre || '';
+  document.getElementById('v-canal').value = v.canal || '';
+  document.getElementById('envio-metodo').value = v.envioMetodo || '';
+  espejoEnvioEnEntrega();
+  document.getElementById('t-descuento').value = Number(v.descuento||0);
+  const topSel = document.getElementById('v-estatus-pago-top'); if(topSel) topSel.value='por_cobrar';
+  const botSel = document.getElementById('v-estatus-pago'); if(botSel) botSel.value='por_cobrar';
+  const mpTop = document.getElementById('v-metodo-pago-top'); if(mpTop) mpTop.value='';
+  recalc();
+  toast('Venta duplicada, lista para guardar con nuevo folio.');
+}
+
+function whatsappShare(){
+  const sub = sum(VENTA.items, it=>it.precio*it.cant);
+  const desc = Number(document.getElementById("t-descuento").value||0);
+  const total = Math.max(0, sub - desc);
+  const lineas = VENTA.items.map(it=>`• ${it.cant}× ${it.prod} ${it.talla} = ${fmt(it.precio*it.cant)}`).join("%0A");
+  const brand = encodeURIComponent(DB.config?.nombreNegocio || 'Panera Signature');
+  const txt = `${brand}%0A${lineas}%0A—%0ASubtotal: ${fmt(sub)}%0ADescuento: ${fmt(desc)}%0ATotal: ${fmt(total)}`;
+  window.open(`https://wa.me/?text=${txt}`, "_blank");
+}
+
+function imprimirTicket(){
+  const w = window.open("", "_blank", "width=380,height=600");
+  const brand = (DB.config && DB.config.nombreNegocio) ? DB.config.nombreNegocio : 'Panera Signature';
+  const sub = sum(VENTA.items, it=>it.precio*it.cant);
+  const desc = Number(document.getElementById("t-descuento").value||0);
+  const total = Math.max(0, sub - desc);
+  const pagado = sum(VENTA.pagos, p=>p.monto);
+  const saldo = Math.max(0,total - pagado);
+  const rows = VENTA.items.map(it=>`<tr><td>${it.cant}× ${it.prod} ${it.talla}</td><td class="right">${fmt(it.precio*it.cant)}</td></tr>`).join("");
+  w.document.write(`
+    <style>body{font-family:monospace;padding:10px} table{width:100%} td{padding:4px 0} .right{text-align:right}</style>
+    <h3>${brand}</h3>
+    <small>${new Date().toLocaleString()}</small>
+    <table>${rows}</table>
+    <hr>
+    <table>
+      <tr><td>Subtotal</td><td class="right">${fmt(sub)}</td></tr>
+      <tr><td>Descuento</td><td class="right">${fmt(desc)}</td></tr>
+      <tr><td><b>Total</b></td><td class="right"><b>${fmt(total)}</b></td></tr>
+      <tr><td>Pagado</td><td class="right">${fmt(pagado)}</td></tr>
+      <tr><td>Saldo</td><td class="right">${fmt(saldo)}</td></tr>
+    </table>
+    <p style="text-align:center">Gracias por su compra</p>
+  `);
+  w.print();
+}
+
+/*******************************
+ * LISTADO Y FILTROS DE VENTAS
+ *******************************/
+function renderVentasRecientes(){
+  const desde = document.getElementById("f-desde").value;
+  const hasta = document.getElementById("f-hasta").value;
+  const cliente = (document.getElementById("f-cliente").value||"").toLowerCase();
+  const clienteDigits = (document.getElementById("f-cliente").value||"").replace(/\D/g, "");
+  const fCanal = document.getElementById("f-canal")?.value || "";
+  const fEnvio = document.getElementById("f-envio")?.value || "";
+  const fEst   = document.getElementById("f-estatus")?.value || "";
+  const fMP    = document.getElementById("f-mp")?.value || "";
+  const fEnt   = document.getElementById("f-entrega")?.value || "";
+  const tb = document.querySelector("#tabla-ventas tbody");
+  let arr = DB.ventas.slice();
+  if(desde) arr = arr.filter(v=>ymd(v.fecha)>=desde);
+  if(hasta) arr = arr.filter(v=>ymd(v.fecha)<=hasta);
+  if(cliente){
+    const mapCli = new Map(DB.clientes.map(c=>[c.id,c]));
+    arr = arr.filter(v=>{
+      const nameOk = (v.clienteNombre||"").toLowerCase().includes(cliente);
+      const tel = String(mapCli.get(v.clienteId||"")?.telefono||"").replace(/\D/g, "");
+      const telOk = clienteDigits ? tel.includes(clienteDigits) : false;
+      return nameOk || telOk;
+    });
+  }
+  if(fCanal) arr = arr.filter(v=> (v.canal||"")===fCanal);
+  if(fEnvio) arr = arr.filter(v=> (v.envioMetodo||"")===fEnvio);
+  if(fEst)   arr = arr.filter(v=> (v.estatusPago||"")===fEst);
+  if(fMP)    arr = arr.filter(v=> (v.pagos||[]).some(p=>p.metodo===fMP));
+  if(fEnt)   arr = arr.filter(v=> (v.estatusEntrega||"")===fEnt);
+  const rows = arr.map(v=>{
+    const mpSet = new Set((v.pagos||[]).map(p=>p.metodo));
+    const mpTxt = mpSet.size===0 ? "—" : (mpSet.size>1 ? "Mixto" : [...mpSet][0]);
+    return `<tr>
+      <td>${v.folio}</td>
+      <td>${fmtLocal(v.fecha)}</td>
+      <td>${v.clienteNombre||"Mostrador"}</td>
+      <td>${v.canal||"—"}</td>
+      <td>${v.envioMetodo||"—"}</td>
+      <td>${v.estatusPago||"—"}</td>
+      <td>${mpTxt}</td>
+      <td class="right">${fmt(v.total)}</td>
+      <td class="right">${fmt(v.saldo)}</td>
+      <td>${v.estatusEntrega||"—"}</td>
+      <td>
+        <button class="btn alt" onclick="editarVenta('${v.id}')">Editar</button>
+        <button class="btn primary" onclick="duplicarVenta('${v.id}')">Duplicar</button>
+        <button class="btn ghost" onclick="eliminarVenta('${v.id}')">Eliminar</button>
+      </td>
+    </tr>`;
+  });
+  tb.innerHTML = rows.join("") || `<tr><td colspan="12" class="muted">Sin ventas</td></tr>`;
+}
+
+function eliminarVenta(ventaId){
+  const v = DB.ventas.find(x=>x.id===ventaId);
+  if(!v) return;
+  if(!confirm(`¿Eliminar la venta ${v.folio}? Esta acción no se puede deshacer.`)) return;
+  DB.ventas = DB.ventas.filter(x=>x.id!==ventaId);
+  saveDB(); renderVentasRecientes(); renderClientes(); renderDashboard();
+  toast("Venta eliminada: "+v.folio);
+}
+
+/*******************************
+ * GASTOS
+ *******************************/
+function renderProveedoresDatalist(){
+  const dl = document.getElementById("dl-proveedores");
+  dl.innerHTML = DB.proveedores.map(p=>`<option value="${p}">`).join("");
+}
+function guardarGasto(){
+  const fecha = document.getElementById("g-fecha").value || hoyISO();
+  const categoria = document.getElementById("g-cat").value;
+  const metodo = document.getElementById("g-metodo").value;
+  const proveedor = (document.getElementById("g-prov").value||"").trim();
+  const monto = Number(document.getElementById("g-monto").value||0);
+  const desc = document.getElementById("g-desc").value||"";
+  if(!categoria || !metodo || monto<=0){ alert("Completa categoría, método y monto válido"); return; }
+
+  if(editingGastoId){
+    const idx = DB.gastos.findIndex(x=>x.id===editingGastoId);
+    if(idx>-1){ DB.gastos[idx] = { ...DB.gastos[idx], fecha, categoria, proveedor, metodo, monto, desc }; }
+    editingGastoId = null; toast("Gasto actualizado");
+  }else{
+    DB.gastos.push({ id:id(), fecha, categoria, proveedor, metodo, monto, desc }); toast("Gasto guardado");
+  }
+
+  if(proveedor && !DB.proveedores.includes(proveedor)){ DB.proveedores.push(proveedor); }
+  saveDB(); renderProveedoresDatalist(); renderGastos(); renderDashboard();
+
+  document.getElementById("g-monto").value="";
+  document.getElementById("g-desc").value="";
+  document.getElementById("g-prov").value="";
+  document.getElementById("g-fecha").value = hoyISO();
+}
+function renderGastos(){
+  const desde = document.getElementById("fg-desde").value;
+  const hasta = document.getElementById("fg-hasta").value;
+  const prov = (document.getElementById("fg-prov").value||"").toLowerCase();
+  const cat = document.getElementById("fg-cat")?.value || "";
+  const met = document.getElementById("fg-metodo")?.value || "";
+  const q = (document.getElementById("fg-q")?.value || "").toLowerCase();
+  let arr = DB.gastos.slice().sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  if(desde) arr = arr.filter(g=>g.fecha>=desde);
+  if(hasta) arr = arr.filter(g=>g.fecha<=hasta);
+  if(prov) arr = arr.filter(g=>(g.proveedor||"").toLowerCase().includes(prov));
+  if(cat)  arr = arr.filter(g=> (g.categoria||"")===cat);
+  if(met)  arr = arr.filter(g=> (g.metodo||"")===met);
+  if(q)    arr = arr.filter(g=> ((g.desc||"").toLowerCase().includes(q) || (g.proveedor||"").toLowerCase().includes(q)));
+  const tb = document.querySelector("#tabla-gastos tbody");
+  tb.innerHTML = arr.map(g=>`<tr>
+    <td>${g.fecha}</td>
+    <td>${g.categoria}</td>
+    <td>${g.proveedor||""}</td>
+    <td>${g.desc||""}</td>
+    <td class="right">${fmt(g.monto)}</td>
+    <td>
+      <button class="btn alt" onclick="editarGasto('${g.id}')">Editar</button>
+      <button class="btn primary" onclick="duplicarGasto('${g.id}')">Duplicar</button>
+      <button class="btn ghost" onclick="eliminarGasto('${g.id}')">Eliminar</button>
+    </td>
+  </tr>`).join("") || `<tr><td colspan="6" class="muted">Sin gastos</td></tr>`;
+
+  // Resumen (total filtrado y nómina del mes actual)
+  const totalFiltrado = sum(arr, g=>g.monto);
+  const [y,m] = hoyISO().split('-');
+  const inicioMes = `${y}-${m}-01`;
+  const finMes = new Date(Number(y), Number(m), 0).toISOString().slice(0,10);
+  const nomMes = sum(DB.gastos.filter(g=>g.categoria==='Nómina' && g.fecha>=inicioMes && g.fecha<=finMes), g=>g.monto);
+  const div = document.getElementById('gastos-resumen');
+  if(div){ div.innerHTML = `Total filtrado: <b>${fmt(totalFiltrado)}</b> · Nómina (mes actual): <b>${fmt(nomMes)}</b>`; }
+}
+function editarGasto(id){
+  const g = DB.gastos.find(x=>x.id===id);
+  if(!g) return;
+  editingGastoId = g.id;
+  document.querySelector('[data-tab="tab-gastos"]').click();
+  document.getElementById("g-fecha").value = g.fecha;
+  document.getElementById("g-cat").value = g.categoria;
+  document.getElementById("g-metodo").value = g.metodo;
+  document.getElementById("g-prov").value = g.proveedor || "";
+  document.getElementById("g-monto").value = g.monto;
+  document.getElementById("g-desc").value = g.desc || "";
+}
+function duplicarGasto(id){
+  const g = DB.gastos.find(x=>x.id===id);
+  if(!g) return;
+  const nuevo = { ...g, id:id_uniq(), fecha:hoyISO() };
+  DB.gastos.unshift(nuevo);
+  saveDB(); renderGastos(); renderDashboard();
+  toast('Gasto duplicado');
+}
+function eliminarGasto(id){
+  const g = DB.gastos.find(x=>x.id===id);
+  if(!g) return;
+  if(!confirm(`¿Eliminar el gasto de ${fmt(g.monto)} (${g.categoria}) del ${g.fecha}?`)) return;
+  DB.gastos = DB.gastos.filter(x=>x.id!==id);
+  saveDB(); renderGastos(); renderDashboard(); toast("Gasto eliminado");
+}
+function exportarCSVGastos(){
+  const headers = ["Fecha","Categoria","Proveedor","Descripcion","Metodo","Monto"]; 
+  const rows = DB.gastos.map(g=>[g.fecha,g.categoria,g.proveedor||"",g.desc||"",g.metodo, g.monto]);
+  descargarCSV([headers,...rows], `gastos_${hoyISO()}.csv`);
+}
+
+function fijarMesActualGastos(){
+  const d = new Date();
+  const y = d.getFullYear(); const m = d.getMonth();
+  const inicio = new Date(y, m, 1).toISOString().slice(0,10);
+  const fin = new Date(y, m+1, 0).toISOString().slice(0,10);
+  const a = document.getElementById('fg-desde'); if(a) a.value = inicio;
+  const b = document.getElementById('fg-hasta'); if(b) b.value = fin;
+  renderGastos();
+}
+
+/*******************************
+ * REPORTES / EXPORTACIONES
+ *******************************/
+function generarReporte(){
+  const d = document.getElementById("r-desde").value;
+  const h = document.getElementById("r-hasta").value;
+  const c = (document.getElementById("r-cliente").value||"").toLowerCase();
+  const tipo = document.getElementById("r-tipo").value;
+  const out = document.getElementById("reporte-out");
+  out.innerHTML = "";
+
+  let ventas = DB.ventas.slice();
+  if(d) ventas = ventas.filter(v=>ymd(v.fecha)>=d);
+  if(h) ventas = ventas.filter(v=>ymd(v.fecha)<=h);
+  if(c) ventas = ventas.filter(v=>(v.clienteNombre||"").toLowerCase().includes(c));
+
+  let gastos = DB.gastos.slice();
+  if(d) gastos = gastos.filter(g=>g.fecha>=d);
+  if(h) gastos = gastos.filter(g=>g.fecha<=h);
+
+  const fmtRow = (cols)=>`<tr>${cols.map((x,i)=>`<td class="${i>=cols.length-2? 'right':''}">${x}</td>`).join('')}</tr>`;
+  const table = (headers, rows)=>`<table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')||`<tr><td colspan="${headers.length}" class="muted">Sin resultados</td></tr>`}</tbody></table>`;
+
+  if(tipo==="resumen"){
+    const ventasTotal = sum(ventas,v=>v.total);
+    const pagado = sum(ventas.filter(v=>(v.estatusPago||"")==="Pagado"), v=>v.total);
+    const cxc = sum(ventas.filter(v=>(v.estatusPago||"")!=="Pagado"), v=>Math.max(0,v.saldo||0));
+    const totalGastos = sum(gastos,g=>g.monto);
+    out.innerHTML = `
+      <div class="kpi" style="margin-top:6px">
+        <div class="box"><h3>Ingresos (ventas)</h3><b>${fmt(ventasTotal)}</b></div>
+        <div class="box"><h3>Pagado</h3><b>${fmt(pagado)}</b></div>
+        <div class="box"><h3>Cuentas por cobrar</h3><b>${fmt(cxc)}</b></div>
+        <div class="box"><h3>Gastos</h3><b>${fmt(totalGastos)}</b></div>
+        <div class="box"><h3>Utilidad</h3><b>${fmt(ventasTotal-totalGastos)}</b></div>
+        <div class="box"><h3>Tickets</h3><b>${ventas.length}</b></div>
+      </div>`;
+    const cont = document.createElement('div');
+    cont.innerHTML = '<h4>Ingresos vs Gastos</h4><canvas id="repResumen"></canvas>';
+    out.appendChild(cont);
+    drawChartDoughnut('repResumen', ['Ingresos','Gastos'], [ventasTotal,totalGastos], ()=>{});
+    return;
+  }
+
+  if(tipo==="ventas"){
+    const rows = ventas.map(v=>fmtRow([v.folio, fmtLocal(v.fecha), v.clienteNombre||'Mostrador', v.canal||'—', v.envioMetodo||'—', v.estatusPago||'—', fmt(v.total), fmt(v.saldo)]));
+    out.innerHTML = table(["Folio","Fecha","Cliente","Canal","Envío","Estatus","Total","Saldo"], rows);
+    const cont = document.createElement('div');
+    cont.innerHTML = '<h4>Evolución de ventas</h4><canvas id="repVentasDia"></canvas>';
+    out.appendChild(cont);
+    const byDay = {};
+    ventas.forEach(v=>{ const d0=ymd(v.fecha); byDay[d0]=(byDay[d0]||0)+v.total; });
+    const lab = Object.keys(byDay).sort();
+    const dat = lab.map(k=>byDay[k]);
+    drawChartLine('repVentasDia', lab, dat, ()=>{});
+    return;
+  }
+
+  if(tipo==="gastos"){
+    const rows = gastos.map(g=>fmtRow([g.fecha, g.categoria, g.proveedor||'', g.metodo, fmt(g.monto)]));
+    out.innerHTML = table(["Fecha","Categoría","Proveedor","Método","Monto"], rows);
+    const cont = document.createElement('div');
+    cont.innerHTML = '<h4>Gastos por categoría</h4><canvas id="repGastosCat"></canvas>';
+    out.appendChild(cont);
+    const gc={}; gastos.forEach(g=> gc[g.categoria]=(gc[g.categoria]||0)+g.monto );
+    drawChartBar('repGastosCat', Object.keys(gc), Object.values(gc), ()=>{});
+    return;
+  }
+
+  if(tipo==="corte_caja"){
+    const porMP = {};
+    ventas.forEach(v=> (v.pagos||[]).forEach(p=> porMP[p.metodo]=(porMP[p.metodo]||0)+p.monto));
+    const rowsMP = Object.entries(porMP).sort((a,b)=>b[1]-a[1]).map(([k,v])=>fmtRow([k, fmt(v)]));
+    const ventasTotal = sum(ventas,v=>v.total);
+    const pagado = sum(ventas.filter(v=>(v.estatusPago||"")==="Pagado"), v=>v.total);
+    const cxc = sum(ventas.filter(v=>(v.estatusPago||"")!=="Pagado"), v=>Math.max(0,v.saldo||0));
+    const totalGastos = sum(gastos,g=>g.monto);
+    out.innerHTML = `
+      <div class="kpi" style="margin-top:6px">
+        <div class="box"><h3>Ingresos (ventas)</h3><b>${fmt(ventasTotal)}</b></div>
+        <div class="box"><h3>Pagado</h3><b>${fmt(pagado)}</b></div>
+        <div class="box"><h3>Cuentas por cobrar</h3><b>${fmt(cxc)}</b></div>
+        <div class="box"><h3>Gastos</h3><b>${fmt(totalGastos)}</b></div>
+        <div class="box"><h3>Utilidad</h3><b>${fmt(ventasTotal-totalGastos)}</b></div>
+      </div>
+      <h4>Métodos de pago</h4>
+      ${table(["Método","Monto"], rowsMP)}
+    `;
+    const cont = document.createElement('div');
+    cont.innerHTML = '<h4>Gráfica</h4><canvas id="repBar"></canvas>';
+    out.appendChild(cont);
+    drawChartBar('repBar', Object.keys(porMP), Object.values(porMP), ()=>{});
+    return;
+  }
+
+  const groupMonto = (kv)=>{
+    const rows = Object.entries(kv).sort((a,b)=>b[1]-a[1]).map(([k,v])=>fmtRow([k, fmt(v)]));
+    out.innerHTML = table(["Concepto","Monto"], rows);
+    const cont = document.createElement('div');
+    cont.innerHTML = '<h4>Gráfica</h4><canvas id="repBar"></canvas>';
+    out.appendChild(cont);
+    drawChartBar('repBar', Object.keys(kv), Object.values(kv), ()=>{});
+  };
+
+  if(tipo==="ventas_canal"){
+    const kv = {}; ventas.forEach(v=>{ kv[v.canal||'—']=(kv[v.canal||'—']||0)+v.total; });
+    return groupMonto(kv);
+  }
+  if(tipo==="ventas_sucursal"){
+    const kv = {}; ventas.forEach(v=>{ kv[v.sucursal||'—']=(kv[v.sucursal||'—']||0)+v.total; });
+    return groupMonto(kv);
+  }
+  if(tipo==="ventas_mp"){
+    const kv = {}; ventas.forEach(v=> (v.pagos||[]).forEach(p=> kv[p.metodo]=(kv[p.metodo]||0)+p.monto));
+    return groupMonto(kv);
+  }
+  if(tipo==="ventas_estatus"){
+    const kv = {}; ventas.forEach(v=>{ const k=v.estatusPago||'—'; kv[k]=(kv[k]||0)+v.total; });
+    return groupMonto(kv);
+  }
+  if(tipo==="ventas_categoria"){
+    const mapProdCat = new Map(DB.productos.map(p=>[p.producto,p.categoria]));
+    const kv = {};
+    ventas.forEach(v=> v.items.forEach(it=>{ const cat=mapProdCat.get(it.prod)||'(sin cat)'; kv[cat]=(kv[cat]||0)+it.precio*it.cant; }));
+    return groupMonto(kv);
+  }
+  if(tipo==="top_productos"){
+    const kv = {};
+    ventas.forEach(v=> v.items.forEach(it=>{ const k=`${it.prod} ${it.talla}`; kv[k]=(kv[k]||0)+it.precio*it.cant; }));
+    return groupMonto(kv);
+  }
+}
+
+function exportarCSVVentas(){
+  const headers = ["Folio","Fecha","Cliente","Canal","StatusPago","Total","Saldo"];
+  const rows = DB.ventas.map(v=>[v.folio, v.fecha, v.clienteNombre||"Mostrador", v.canal, (v.estatusPago||""), v.total, v.saldo]);
+  descargarCSV([headers,...rows], `ventas_${hoyISO()}.csv`);
+}
+
+function descargarCSV(rows, filename){
+  const csv = rows.map(r=>r.map(c=>`"${String(c).replaceAll('"','""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+}
+
+function exportarJSON(){
+  const blob = new Blob([JSON.stringify(DB,null,2)], {type:"application/json"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `backup_panera_${hoyISO()}.json`; a.click();
+}
+function importarJSON(){
+  const inp = document.createElement("input"); inp.type = "file"; inp.accept = "application/json";
+  inp.onchange = () => {
+    const f = inp.files[0]; if(!f) return;
+    const reader = new FileReader();
+    reader.onload = () => { try{
+      const data = JSON.parse(reader.result);
+      ["config","clientes","proveedores","productos","ventas","gastos","eventos","costeo"].forEach(k=>{ if(data[k]!==undefined) DB[k]=data[k]; });
+      saveDB(); initUI(); toast("Backup restaurado");
+    }catch(e){ alert("JSON inválido"); } };
+    reader.readAsText(f);
+  };
+  inp.click();
+}
+
+/* Funciones nuevas de dashboard rápidas */
+function generarCorteRapidoHoy(){
+  const hoy = ymd(new Date());
+  const ventas = DB.ventas.filter(v=> ymd(v.fecha)===hoy);
+  const gastos = DB.gastos.filter(g=> g.fecha===hoy);
+  const porMP = {};
+  ventas.forEach(v=> (v.pagos||[]).forEach(p=> porMP[p.metodo]=(porMP[p.metodo]||0)+Number(p.monto||0)));
+  const total = sum(ventas,v=>Number(v.total||0));
+  const pagado = sum(ventas.filter(v=>(v.estatusPago||"")==="Pagado"), v=>Number(v.total||0));
+  const cxc = sum(ventas.filter(v=>(v.estatusPago||"")!=="Pagado"), v=>Math.max(0, Number(v.saldo||0)));
+  const tg = sum(gastos,g=>Number(g.monto||0));
+  const util = total - tg;
+  const tbl = Object.entries(porMP).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td class="right">${fmt(v)}</td></tr>`).join("") || `<tr><td colspan="2" class="muted">Sin pagos</td></tr>`;
+  const html = `
+    <div class="modal" onclick="this.remove()">
+      <div class="box" onclick="event.stopPropagation()">
+        <div class="flex" style="justify-content:space-between;align-items:center"><h3 style="margin:0">Corte de caja – ${hoy}</h3><button class="btn ghost" onclick="this.closest('.modal').remove()">Cerrar</button></div>
+        <div class="kpi" style="margin:10px 0">
+          <div class="box"><h3>Ventas</h3><b>${fmt(total)}</b></div>
+          <div class="box"><h3>Pagado</h3><b>${fmt(pagado)}</b></div>
+          <div class="box"><h3>CxC</h3><b>${fmt(cxc)}</b></div>
+          <div class="box"><h3>Gastos</h3><b>${fmt(tg)}</b></div>
+          <div class="box"><h3>Utilidad</h3><b>${fmt(util)}</b></div>
+          <div class="box"><h3>Tickets</h3><b>${ventas.length}</b></div>
+        </div>
+        <h4>Métodos de pago</h4>
+        <table style="width:100%"><thead><tr><th>Método</th><th class="right">Monto</th></tr></thead><tbody>${tbl}</tbody></table>
+        <div class="flex" style="margin-top:10px;gap:8px">
+          <button class="btn primary" onclick="exportarCSVCorteHoy()">Descargar CSV</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function exportarCSVCorteHoy(){
+  const hoy = ymd(new Date());
+  const ventas = DB.ventas.filter(v=> ymd(v.fecha)===hoy);
+  const gastos = DB.gastos.filter(g=> g.fecha===hoy);
+  const porMP = {}; ventas.forEach(v=> (v.pagos||[]).forEach(p=> porMP[p.metodo]=(porMP[p.metodo]||0)+Number(p.monto||0)));
+  const rows = [["Concepto","Monto"],["Ventas", sum(ventas,v=>Number(v.total||0))],["Gastos", sum(gastos,g=>Number(g.monto||0))]];
+  Object.entries(porMP).forEach(([k,v])=> rows.push([`MP:${k}`, v]));
+  descargarCSV(rows, `corte_${hoy}.csv`);
+}
+function descargarBackupRapido(){
+  const blob = new Blob([JSON.stringify(DB,null,2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `backup_panera_${hoyISO()}.json`; a.click();
+}
+
+/*******************************
+ * CONFIGURACIÓN
+ *******************************/
+function guardarConfig(){
+  DB.config.prefijo = document.getElementById("cfg-prefijo").value || "PAN";
+  DB.config.nombreNegocio = (document.getElementById('cfg-nombre').value||'').trim() || 'Panera Signature';
+  DB.config.autoPrintTicket = (document.getElementById('cfg-autoprint').value||'no')==='si';
+  const mpv = (document.getElementById('cfg-mp-ventas').value||'').split(',').map(x=>x.trim()).filter(Boolean);
+  const mpg = (document.getElementById('cfg-mp-gastos').value||'').split(',').map(x=>x.trim()).filter(Boolean);
+  DB.config.metodosVentas = mpv.length? mpv : METODOS_DEFAULT_VENTAS.slice();
+  DB.config.metodosGastos = mpg.length? mpg : METODOS_DEFAULT_GASTOS.slice();
+  saveDB();
+  // refrescar selects dependientes
+  fillSelect("pago-metodo", getMetodosVentas());
+  fillSelect("v-metodo-pago-top", getMetodosVentas());
+  fillSelect("g-metodo", getMetodosGastos());
+  fillSelectFiltro("f-mp", getMetodosVentas());
+  const fb = document.getElementById('footer-brand'); if(fb) fb.textContent = DB.config.nombreNegocio;
+  recalc(); renderDashboard(); toast("Configuración guardada");
+}
+function resetearTodo(){
+  if(!confirm("¿Borrar toda la base local? Esta acción es irreversible.")) return;
+  localStorage.removeItem("panera.db.v1");
+  Object.keys(localStorage).forEach(k=>{ if(k.startsWith("folio.")) localStorage.removeItem(k); });
+  loadDB(); saveDB(); initUI();
+}
+
+/*******************************
+ * DASHBOARD
+ *******************************/
+function renderDashboard(){
+  const dDesde = document.getElementById("db-desde")?.value || null;
+  const dHasta = document.getElementById("db-hasta")?.value || null;
+  const startOfMonth = (()=>{ const d=new Date(); d.setDate(1); return ymd(d); })();
+  const endToday = hoyISO();
+  const rDesde = dDesde || startOfMonth;
+  const rHasta = dHasta || endToday;
+  const inRange = (iso) => (!rDesde || ymd(iso) >= rDesde) && (!rHasta || ymd(iso) <= rHasta);
+
+  const ventasRango = DB.ventas.filter(v=> inRange(v.fecha));
+  const ventasRangoTotal = sum(ventasRango, v=>v.total);
+  const pagadoRango = sum(ventasRango.filter(v=> (v.estatusPago||"") === "Pagado"), v=>v.total);
+  const saldoRango = sum(ventasRango.filter(v=> (v.estatusPago||"") !== "Pagado"), v=>Math.max(0, v.saldo||0));
+  const totalGastosRango = sum(DB.gastos.filter(g=> inRange(g.fecha)), g=>g.monto);
+
+  const countTicketsRango = ventasRango.length || 1;
+  const ticketProm = ventasRangoTotal / countTicketsRango;
+
+  const productosVendidosRango = sum(ventasRango, v => sum(v.items, it => it.cant));
+  const mapCatByProd = new Map(DB.productos.map(p=>[p.producto,p.categoria]));
+  let pastelesVendidosRango = 0;
+  ventasRango.forEach(v => v.items.forEach(it => { if((mapCatByProd.get(it.prod)||"") === "Pasteles"){ pastelesVendidosRango += it.cant; } }));
+
+  const kpi = document.getElementById("kpi-cards");
+  if(kpi){
+    kpi.innerHTML = `
+      <div class="box"><h3>Ventas (rango)</h3><b>${fmt(ventasRangoTotal)}</b></div>
+      <div class="box"><h3>Pagado (rango)</h3><b>${fmt(pagadoRango)}</b></div>
+      <div class="box"><h3>CxC (rango)</h3><b>${fmt(saldoRango)}</b></div>
+      <div class="box"><h3>Gastos (rango)</h3><b>${fmt(totalGastosRango)}</b></div>
+      <div class="box"><h3>Utilidad (rango)</h3><b>${fmt(ventasRangoTotal - totalGastosRango)}</b></div>
+      <div class="box"><h3>Ticket promedio</h3><b>${fmt(ticketProm)}</b></div>
+      <div class="box"><h3>Pasteles vendidos</h3><b>${pastelesVendidosRango}</b></div>
+      <div class="box"><h3>Productos vendidos</h3><b>${productosVendidosRango}</b></div>
+      <div class="box"><h3>Tickets</h3><b>${ventasRango.length}</b></div>
+    `;
+  }
+
+  // Series por día
+  const start = new Date(rDesde); const end = new Date(rHasta); const days = [];
+  for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){ days.push(ymd(d)); }
+  const ventasPorDia = days.map(d=> sum(DB.ventas.filter(v=> ymd(v.fecha)===d), v=>v.total));
+  drawChartLine("chVentas", days, ventasPorDia, ()=>{});
+
+  // Métodos de pago
+  const pagos = {};
+  DB.ventas.filter(v=> inRange(v.fecha)).forEach(v=> v.pagos.forEach(p=> pagos[p.metodo]=(pagos[p.metodo]||0)+p.monto ));
+  drawChartDoughnut("chMetodos", Object.keys(pagos), Object.values(pagos), ()=>{});
+
+  // Ventas por categoría
+  const ventasRangoItems = {};
+  const mapProdCat2 = new Map(DB.productos.map(p=>[p.producto,p.categoria]));
+  ventasRango.forEach(v=> v.items.forEach(it=>{
+    const cat = mapProdCat2.get(it.prod)||"(sin cat)";
+    ventasRangoItems[cat] = (ventasRangoItems[cat]||0) + it.precio*it.cant;
+  }));
+  drawChartBar("chCategorias", Object.keys(ventasRangoItems), Object.values(ventasRangoItems), ()=>{});
+
+  // Gastos por categoría
+  const gRango = DB.gastos.filter(g=> inRange(g.fecha));
+  const gCat = {}; gRango.forEach(g=> gCat[g.categoria]=(g.categoria in gCat?gCat[g.categoria]:0)+g.monto );
+  drawChartBar("chGastos", Object.keys(gCat), Object.values(gCat), ()=>{});
+
+  // Top 3 productos por cantidad
+  const topCount = {};
+  ventasRango.forEach(v=> v.items.forEach(it=>{ topCount[it.prod] = (topCount[it.prod]||0) + Number(it.cant||0); }));
+  const top3 = Object.entries(topCount).sort((a,b)=> b[1]-a[1]).slice(0,3);
+  drawChartBar("chTop3", top3.map(x=>x[0]), top3.map(x=>x[1]), ()=>{});
+
+  // Ventas por día de semana
+  const ventasPorDow = Array.from({length:7},()=>0);
+  ventasRango.forEach(v=>{ const d=new Date(v.fecha).getDay(); ventasPorDow[d]+=v.total; });
+  drawChartBar("chDow", DOW_ES, ventasPorDow, ()=>{});
+
+  // Ventas por canal
+  const byCanal = {}; ventasRango.forEach(v=>{ const k=v.canal||'—'; byCanal[k]=(byCanal[k]||0)+v.total; });
+  drawChartBar('chCanal', Object.keys(byCanal), Object.values(byCanal), ()=>{});
+
+
+  // Pagado vs Saldo (rango)
+  const pagadoMonto = sum(ventasRango, v=> sum(v.pagos||[], p=>Number(p.monto||0)));
+  const saldoMonto = sum(ventasRango, v=> Math.max(0, Number(v.saldo||0)));
+  drawChartDoughnut('chPagadoSaldo', ['Pagado','Saldo'], [pagadoMonto, saldoMonto], ()=>{});
+
+  // Ticket promedio por día
+  const totByDay = {}; const cntByDay = {};
+  ventasRango.forEach(v=>{ const d0=ymd(v.fecha); totByDay[d0]=(totByDay[d0]||0)+v.total; cntByDay[d0]=(cntByDay[d0]||0)+1; });
+  const avgTicket = days.map(d=> cntByDay[d]? (totByDay[d]/cntByDay[d]) : 0);
+  drawChartLine('chTicketProm', days, avgTicket, ()=>{});
+
+  // Próximas 24h
+  const ahora = Date.now();
+  const prox24h = ahora + 24*60*60*1000;
+  const entregas = DB.ventas.filter(v=>{
+    const f = v?.entrega?.fecha ? new Date(v.entrega.fecha).getTime() : NaN;
+    const okFecha = !isNaN(f) && f>=ahora && f<=prox24h;
+    const okStatus = (v.estatusEntrega||"Por preparar")!=='Entregado' && (v.estatusEntrega||"Por preparar")!=='Cancelado';
+    return okFecha && okStatus;
+  }).sort((a,b)=> new Date(a.entrega.fecha) - new Date(b.entrega.fecha));
+  const tbp = document.querySelector('#tabla-entregas-proximas tbody');
+  if(tbp){ tbp.innerHTML = (entregas.map(v=>`<tr>
+      <td>${v.folio}</td>
+      <td>${v.clienteNombre||'Mostrador'}</td>
+      <td>${(v.entrega?.fecha||'').replace('T',' ').slice(0,16)}</td>
+      <td>${v.envioMetodo||'—'}</td>
+      <td>${v.estatusEntrega||'—'}</td>
+      <td>${(v.notas||'')}</td>
+    </tr>`).join('')) || `<tr><td colspan="6" class="muted">Sin entregas próximas</td></tr>`; }
+}
+
+// Gráficas seguras (no truenan si falta el canvas)
+function chartSafeCtx(id){
+  const el = document.getElementById(id);
+  if(!el) return null;
+  const ctx = el.getContext && el.getContext('2d');
+  return ctx || null;
+}
+function drawChartLine(id, labels, data, cb){
+  const ctx = chartSafeCtx(id); if(!ctx){ cb&&cb(null); return; }
+  if(window[id+"_inst"]) window[id+"_inst"].destroy();
+  const pal = chartPalette();
+  const inst = new Chart(ctx, { type:"line", data:{ labels: labels||[], datasets:[{ label:"Monto", data: (data||[]), tension:0.35, borderWidth:2, borderColor: pal[0], backgroundColor: toRgba(pal[0], .15), pointRadius:2 }] }, options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, grid:{ color: toRgba(cssVar('--p-light')||'#e5e7eb', .6) } }, x:{ grid:{ display:false } } } } });
+  window[id+"_inst"] = inst;
+  window._charts = (window._charts||[]).filter(c=> c?.canvas?.id !== id);
+  window._charts.push(inst);
+  cb&&cb(inst);
+}
+function drawChartBar(id, labels, data, cb){
+  const ctx = chartSafeCtx(id); if(!ctx){ cb&&cb(null); return; }
+  if(window[id+"_inst"]) window[id+"_inst"].destroy();
+  const pal = chartPalette();
+  const inst = new Chart(ctx, { type:"bar", data:{ labels: labels||[], datasets:[{ label:"Monto", data: (data||[]), backgroundColor: pal[1] }] }, options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, grid:{ color: toRgba(cssVar('--p-light')||'#e5e7eb', .6) } }, x:{ grid:{ display:false } } } } });
+  window[id+"_inst"] = inst;
+  window._charts = (window._charts||[]).filter(c=> c?.canvas?.id !== id);
+  window._charts.push(inst);
+  cb&&cb(inst);
+}
+function drawChartDoughnut(id, labels, data, cb){
+  const ctx = chartSafeCtx(id); if(!ctx){ cb&&cb(null); return; }
+  if(window[id+"_inst"]) window[id+"_inst"].destroy();
+  const pal = chartPalette();
+  const colors = (data||[]).map((_,i)=> pal[i % pal.length]);
+  const inst = new Chart(ctx, { type:"doughnut", data:{ labels: labels||[], datasets:[{ data: (data||[]), backgroundColor: colors }] }, options:{ responsive:true, plugins:{legend:{position:"bottom"}} } });
+  window[id+"_inst"] = inst;
+  window._charts = (window._charts||[]).filter(c=> c?.canvas?.id !== id);
+  window._charts.push(inst);
+  cb&&cb(inst);
+}
+
+/*******************************
+ * IMPORTADOR RÁPIDO CSV (PRODUCTOS)
+ *******************************/
+function abrirImportador(){ document.getElementById("importador").classList.remove("hidden"); }
+function cerrarImportador(){ document.getElementById("importador").classList.add("hidden"); }
+function procesarCSV(){
+  const txt = document.getElementById("csv").value.trim();
+  if(!txt){ alert("Pega el CSV primero"); return; }
+  const rows = txt.split(/\r?\n/).map(l=>l.split(",").map(x=>x.trim()));
+  rows.forEach(([categoria,producto,variante,precio])=>{
+    if(!categoria||!producto||!variante||!precio) return;
+    let p = DB.productos.find(x=>x.producto===producto && x.categoria===categoria);
+    if(!p){ p = {categoria, producto, variantes:{}, activo:true}; DB.productos.push(p); }
+    p.variantes[variante] = Number(precio)||0;
+  });
+  saveDB(); renderCategorias(); renderProductos(); renderVariantes(); renderTablaProductos(); rebuildProductIndex();
+  toast("Catálogo actualizado");
+}
+
+/*******************************
+ * ARRANQUE
+ *******************************/
+async function bootstrap(){
+  loadDB();
+  initAuth();
+  await syncRemoteDB();
+  initUI();
+}
+window.addEventListener("load", bootstrap);
+
+// ==============================
+// BÚSQUEDA RÁPIDA DE PRODUCTOS
+// ==============================
+let PRODUCT_INDEX = [];
+function rebuildProductIndex(){
+  PRODUCT_INDEX = [];
+  DB.productos.filter(p=>p.activo!==false).forEach(p=>{
+    Object.entries(p.variantes||{}).forEach(([v,precio])=>{
+      PRODUCT_INDEX.push({ cat:p.categoria, prod:p.producto, var:v, precio, key:`${p.producto} ${v}`.toLowerCase() });
+    });
+  });
+}
+function buscarProductoRapido(q){
+  const term = (q||'').trim().toLowerCase(); if(!term) return [];
+  const toks = term.split(/\s+/).filter(Boolean);
+  const scored = PRODUCT_INDEX.map(it=>{
+    const score = toks.reduce((s,t)=> s + (it.key.includes(t)?1:0), 0);
+    return {it, score};
+  }).filter(x=>x.score>0).sort((a,b)=> b.score - a.score).slice(0,10).map(x=>x.it);
+  return scored;
+}
+function renderSugerenciasProducto(){
+  const box = document.getElementById('p-suggest'); const inp = document.getElementById('p-buscar-rapido'); if(!box||!inp) return;
+  const arr = buscarProductoRapido(inp.value);
+  if(arr.length===0){ box.classList.add('hidden'); box.innerHTML=''; return; }
+  box.innerHTML = arr.map(r=>`<div class="ac-item" onclick="selectProductoSugerencia('${r.cat}','${r.prod}','${r.var}')">
+    <div class="ac-name">${r.prod} <span class="badge">${r.var}</span></div>
+    <div class="ac-meta">${r.cat}<br>${fmt(r.precio)}</div>
+  </div>`).join('');
+  box.classList.remove('hidden');
+}
+function selectProductoSugerencia(cat, prod, vari){
+  const c = document.getElementById('p-cat'); if(c){ c.value = cat; renderProductos(); }
+  const p = document.getElementById('p-prod'); if(p){ p.value = prod; renderVariantes(); }
+  const v = document.getElementById('p-var'); if(v){ v.value = vari; syncPrecio(); }
+  document.getElementById('p-suggest')?.classList.add('hidden');
+  const qty = document.getElementById('p-cant'); if(qty) qty.focus();
+}
+function addItemDesdeBusqueda(){
+  const arr = buscarProductoRapido(document.getElementById('p-buscar-rapido').value);
+  if(arr.length>0){ selectProductoSugerencia(arr[0].cat, arr[0].prod, arr[0].var); addItem(); }
+}
+
+// ==============================
+// CALENDARIO / TENDENCIAS
+// ==============================
+let CAL_NOW = new Date();
+function agregarEvento(){
+  const nombre = (document.getElementById('ev-nombre').value||'').trim();
+  const fecha = document.getElementById('ev-fecha').value;
+  const rel = document.getElementById('ev-rel').value === 'Sí';
+  if(!nombre||!fecha){ alert('Evento y fecha son obligatorios'); return; }
+  DB.eventos.push({ id:id_uniq(), nombre, fecha, relevante: rel });
+  saveDB(); renderEventos(); renderCalendario();
+  document.getElementById('ev-nombre').value=''; document.getElementById('ev-fecha').value=''; document.getElementById('ev-rel').value='No';
+  toast('Evento agregado');
+}
+function eliminarEvento(id){ DB.eventos = DB.eventos.filter(e=>e.id!==id); saveDB(); renderEventos(); renderCalendario(); toast('Evento eliminado'); }
+function toggleEventoRel(id){ const e = DB.eventos.find(x=>x.id===id); if(e){ e.relevante=!e.relevante; saveDB(); renderEventos(); renderCalendario(); } }
+function daysUntil(dateStr){ const a = new Date(); const b = new Date(dateStr+'T00:00:00'); return Math.ceil((b - a)/(1000*60*60*24)); }
+function renderEventos(){
+  const tb = document.querySelector('#tabla-eventos tbody'); if(!tb) return;
+  const arr = DB.eventos.slice().sort((a,b)=> a.fecha.localeCompare(b.fecha));
+  tb.innerHTML = arr.map(e=>`<tr>
+    <td>${e.fecha}</td>
+    <td>${e.nombre}</td>
+    <td>${e.relevante? 'Sí':'No'}</td>
+    <td class="right">${daysUntil(e.fecha)}</td>
+    <td>
+      <button class="btn alt" onclick="toggleEventoRel('${e.id}')">${e.relevante?'Quitar relevancia':'Marcar relevante'}</button>
+      <button class="btn ghost" onclick="eliminarEvento('${e.id}')">Eliminar</button>
+    </td>
+  </tr>`).join('') || `<tr><td colspan="5" class="muted">Sin eventos</td></tr>`;
+}
+function navMes(delta){ CAL_NOW = new Date(CAL_NOW.getFullYear(), CAL_NOW.getMonth()+delta, 1); renderCalendario(); }
+function renderCalendario(){
+  const grid = document.getElementById('cal-grid'); const ttl = document.getElementById('cal-title'); if(!grid||!ttl) return;
+  const y = CAL_NOW.getFullYear(); const m = CAL_NOW.getMonth();
+  const monthName = new Date(y,m,1).toLocaleDateString('es-MX',{month:'long',year:'numeric'});
+  ttl.textContent = `Vista mensual • ${monthName}`;
+  const firstDow = new Date(y,m,1).getDay();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const cells = [];
+  // headers
+  const dow = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  cells.push(...dow.map(d=>`<div class="muted" style="font-weight:700">${d}</div>`));
+  for(let i=0;i<firstDow;i++){ cells.push('<div></div>'); }
+  for(let d=1; d<=daysInMonth; d++){
+    const yyyy = String(y); const mm = String(m+1).padStart(2,'0'); const dd = String(d).padStart(2,'0'); const iso=`${yyyy}-${mm}-${dd}`;
+    const evs = DB.eventos.filter(e=>e.fecha===iso);
+    const mark = evs.map(e=>`<div class="badge" style="${e.relevante?'background:#fde68a':''}">${e.nombre}</div>`).join('');
+    cells.push(`<div style="border:1px solid var(--p-light);border-radius:8px;padding:6px;min-height:70px">
+      <div style="font-size:12px;color:#64748b">${d}</div>
+      ${mark}
+    </div>`);
+  }
+  grid.className = 'grid g7';
+  grid.innerHTML = cells.join('');
+}
+
+// util id for duplications/events
+function id_uniq(){ return Math.random().toString(36).slice(2)+Date.now().toString(36).slice(-4); }
+
+// ==============================
+// PLANTILLA: CALENDARIO MARKETING MX
+// ==============================
+function addEventUnique(fechaISO, nombre, relevante=true){
+  if(!fechaISO||!nombre) return false;
+  const exists = DB.eventos.some(e=> e.fecha===fechaISO && e.nombre===nombre);
+  if(exists) return false;
+  DB.eventos.push({ id:id_uniq(), nombre, fecha:fechaISO, relevante });
+  return true;
+}
+function nthWeekdayOfMonth(year, month0, weekday, n){
+  // weekday: 0=domingo...6=sábado; n: 1..5
+  const d = new Date(year, month0, 1);
+  let add = (7 + weekday - d.getDay()) % 7; // distancia al primer weekday
+  const day = 1 + add + 7*(n-1);
+  return new Date(year, month0, day);
+}
+function lastWeekdayOfMonth(year, month0, weekday){
+  const d = new Date(year, month0+1, 0); // último día del mes
+  const diff = (7 + d.getDay() - weekday) % 7;
+  return new Date(year, month0+1, 0 - diff);
+}
+function easterDate(y){
+  const a=y%19; const b=Math.floor(y/100); const c=y%100; const d=Math.floor(b/4); const e=b%4; const f=Math.floor((b+8)/25);
+  const g=Math.floor((b-f+1)/3); const h=(19*a+b-d-g+15)%30; const i=Math.floor(c/4); const k=c%4; const l=(32+2*e+2*i-h-k)%7;
+  const m=Math.floor((a+11*h+22*l)/451); const month=Math.floor((h+l-7*m+114)/31); const day=((h+l-7*m+114)%31)+1;
+  return new Date(y, month-1, day);
+}
+function iso(d){ return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0,10); }
+function seedMarketingCalendar(){
+  const y = Number(document.getElementById('ev-year')?.value || new Date().getFullYear());
+  const tpl = document.getElementById('ev-template')?.value || 'mx';
+  if(tpl!== 'mx'){ alert('Solo plantilla MX disponible por ahora'); return; }
+  let added = 0;
+  // Fechas fijas MX
+  [[1,1,'Año Nuevo'],[1,6,'Día de Reyes (Rosca)'],[2,2,'Día de la Candelaria'],[2,14,'San Valentín'],[3,8,'Día Internacional de la Mujer'],[4,30,'Día del Niño'],[5,1,'Día del Trabajo'],[5,10,'Día de las Madres'],[5,15,'Día del Maestro'],[9,15,'Grito de Independencia'],[9,16,'Día de la Independencia'],[10,31,'Halloween'],[11,1,'Día de Muertos (1)'],[11,2,'Día de Muertos (2)'],[12,12,'Día de la Virgen de Guadalupe'],[12,24,'Nochebuena'],[12,25,'Navidad'],[12,31,'Fin de Año']]
+    .forEach(([mm,dd,nm])=>{ added += addEventUnique(`${y}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`, nm, true)?1:0; });
+
+  // Día del Padre (3er domingo de junio)
+  const diaPadre = nthWeekdayOfMonth(y, 5, 0, 3); added += addEventUnique(iso(diaPadre), 'Día del Padre', true)?1:0;
+  // Día del Abuelo (último domingo de agosto)
+  const diaAbuelo = lastWeekdayOfMonth(y, 7, 0); added += addEventUnique(iso(diaAbuelo), 'Día del Abuelo', true)?1:0;
+  // Regreso a clases (último lunes de agosto)
+  const regreso = lastWeekdayOfMonth(y, 7, 1); added += addEventUnique(iso(regreso), 'Regreso a clases', true)?1:0;
+
+  // Semana Santa / Pascua
+  const pascua = easterDate(y); // domingo
+  const viernesSanto = new Date(pascua); viernesSanto.setDate(viernesSanto.getDate()-2);
+  const juevesSanto = new Date(pascua); juevesSanto.setDate(juevesSanto.getDate()-3);
+  added += addEventUnique(iso(juevesSanto), 'Jueves Santo', true)?1:0;
+  added += addEventUnique(iso(viernesSanto), 'Viernes Santo', true)?1:0;
+  added += addEventUnique(iso(pascua), 'Domingo de Pascua', true)?1:0;
+
+  // Hot Sale MX (último lunes de mayo)
+  const hotSale = lastWeekdayOfMonth(y, 4, 1); added += addEventUnique(iso(hotSale), 'Hot Sale (inicio aprox.)', true)?1:0;
+  // Buen Fin MX (3er viernes de noviembre)
+  const buenFin = nthWeekdayOfMonth(y, 10, 5, 3); added += addEventUnique(iso(buenFin), 'Buen Fin (inicio aprox.)', true)?1:0;
+  // Black Friday (4º viernes de noviembre)
+  const blackFriday = nthWeekdayOfMonth(y, 10, 5, 4); added += addEventUnique(iso(blackFriday), 'Black Friday', true)?1:0;
+  // Cyber Monday (lunes siguiente a Black Friday)
+  const cyberMonday = new Date(blackFriday); while(cyberMonday.getDay()!==1){ cyberMonday.setDate(cyberMonday.getDate()+1); }
+  added += addEventUnique(iso(cyberMonday), 'Cyber Monday', true)?1:0;
+
+  // Temporadas sugeridas
+  added += addEventUnique(`${y}-06-15`, 'Temporada de graduaciones (jun–jul)', true)?1:0;
+  added += addEventUnique(`${y}-10-15`, 'Arranque temporada Pan de Muerto', true)?1:0;
+  added += addEventUnique(`${y}-11-15`, 'Arranque temporada Navideña', true)?1:0;
+
+  saveDB(); renderEventos(); renderCalendario();
+  toast(`${added} eventos agregados/actualizados`, 'ok');
+}
+
+/*******************************
+ * COTIZADOR / COSTEO
+ *******************************/
+let CT = { editingMatId:null, editingRecId:null, receta:{ producto:'', rinde:1, precio:0, items:[] } };
+function renderSelectMateriales(){
+  const opts = (DB.costeo.materiales||[]).map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('');
+  const sel = document.getElementById('ct-r-mat'); if(sel){ sel.innerHTML = `<option value="">— Selecciona —</option>`+opts; }
+}
+function computeCostoUnit(unidad, contenido, costo){
+  if(contenido<=0 || costo<=0) return 0;
+  let per = 0;
+  switch((unidad||'').toLowerCase()){
+    case 'pieza': per = costo / contenido; break;
+    case 'gramo': per = costo / contenido; break; // contenido en g
+    case 'kilogramo': per = costo / (contenido * 1000); break;
+    case 'mililitro': per = costo / contenido; break; // contenido en ml
+    case 'litro': per = costo / (contenido * 1000); break;
+    default: per = costo / contenido; break;
+  }
+  return Number(per.toFixed(6));
+}
+function guardarMaterial(){
+  const nombre = (document.getElementById('ct-mt-nombre').value||'').trim();
+  const unidad = document.getElementById('ct-mt-unidad').value||'pieza';
+  const contenido = Number(document.getElementById('ct-mt-contenido').value||0);
+  const costo = Number(document.getElementById('ct-mt-costo').value||0);
+  if(!nombre || !unidad || contenido<=0 || costo<=0){ toast('Faltan datos para calcular costo por unidad', 'err'); return; }
+  const costoUnit = computeCostoUnit(unidad, contenido, costo);
+  if(CT.editingMatId){
+    const idx = DB.costeo.materiales.findIndex(x=>x.id===CT.editingMatId);
+    if(idx>-1) DB.costeo.materiales[idx] = { ...DB.costeo.materiales[idx], nombre, unidad, contenido, costo, costoUnit };
+    CT.editingMatId = null; toast('Material actualizado');
+  }else{
+    DB.costeo.materiales.push({ id:id_uniq(), nombre, unidad, contenido, costo, costoUnit }); toast('Material guardado');
+  }
+  saveDB(); renderMateriales(); renderSelectMateriales(); limpiarMaterial(); recalcReceta();
+}
+function limpiarMaterial(){ ['ct-mt-nombre','ct-mt-contenido','ct-mt-costo'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; }); document.getElementById('ct-mt-unidad').value='pieza'; CT.editingMatId=null; }
+function editarMaterial(id){ const m = DB.costeo.materiales.find(x=>x.id===id); if(!m) return; CT.editingMatId=id; document.getElementById('ct-mt-nombre').value=m.nombre; document.getElementById('ct-mt-unidad').value=m.unidad; document.getElementById('ct-mt-contenido').value=m.contenido; document.getElementById('ct-mt-costo').value=m.costo; }
+function eliminarMaterial(id){ if(!confirm('¿Eliminar material?')) return; DB.costeo.materiales = DB.costeo.materiales.filter(x=>x.id!==id); saveDB(); renderMateriales(); renderSelectMateriales(); recalcReceta(); }
+function renderMateriales(){
+  const tb = document.querySelector('#tabla-materiales tbody'); if(!tb) return;
+  const q = (document.getElementById('ct-mt-q')?.value||'').toLowerCase();
+  const u = (document.getElementById('ct-mt-q-unit')?.value||'');
+  const arr = (DB.costeo.materiales||[]).filter(m=>{
+    const okQ = !q || (m.nombre||'').toLowerCase().includes(q) || (m.unidad||'').toLowerCase().includes(q);
+    const okU = !u || (m.unidad||'')===u;
+    return okQ && okU;
+  });
+  tb.innerHTML = arr.map(m=>`<tr>
+    <td>${m.nombre}</td>
+    <td>${m.unidad}</td>
+    <td>${m.contenido}</td>
+    <td class="right">${m.costo? fmt(m.costo):''}</td>
+    <td class="right">${m.costoUnit? fmt(m.costoUnit):''}</td>
+    <td><button class="btn alt" onclick="editarMaterial('${m.id}')">Editar</button> <button class="btn ghost" onclick="eliminarMaterial('${m.id}')">Eliminar</button></td>
+  </tr>`).join('') || `<tr><td colspan="6" class="muted">Sin materiales</td></tr>`;
+}
+function nuevaReceta(){ CT.editingRecId=null; CT.receta={ producto:'', rinde:1, precio:0, items:[] }; document.getElementById('ct-r-nombre').value=''; document.getElementById('ct-r-rinde').value=1; document.getElementById('ct-r-precio').value=''; renderRecetaItems(); recalcReceta(); }
+function addIngredienteReceta(){
+  const matId = document.getElementById('ct-r-mat').value; const cant = Number(document.getElementById('ct-r-cant').value||0);
+  if(!matId || cant<=0){ toast('Selecciona material y cantidad válida','err'); return; }
+  if(CT.editingIngId){
+    const idx = CT.receta.items.findIndex(x=>x.id===CT.editingIngId);
+    if(idx>-1){ CT.receta.items[idx] = { ...CT.receta.items[idx], matId, cant }; }
+    CT.editingIngId = null; document.getElementById('ct-r-add-btn').textContent='Agregar ingrediente';
+  }else{
+    CT.receta.items.push({ id:id_uniq(), matId, cant });
+  }
+  document.getElementById('ct-r-cant').value='';
+  renderRecetaItems(); recalcReceta();
+}
+function removeIngrediente(id){ CT.receta.items = CT.receta.items.filter(x=>x.id!==id); renderRecetaItems(); recalcReceta(); }
+function ingUnidadBase(und){ const u=(und||'').toLowerCase(); return u==='pieza'?'pieza': (u==='gramo'||u==='kilogramo'?'gr':'ml'); }
+function renderRecetaItems(){
+  const tb = document.querySelector('#tabla-receta-it tbody'); if(!tb) return;
+  const mats = new Map((DB.costeo.materiales||[]).map(m=>[m.id,m]));
+  tb.innerHTML = (CT.receta.items||[]).map(it=>{ const m=mats.get(it.matId)||{}; const cost= (m.costoUnit||0) * (it.cant||0); return `<tr>
+    <td>${m.nombre||'—'}</td>
+    <td>${it.cant}</td>
+    <td>${m.unidad||''}</td>
+    <td class="right">${m.costoUnit? fmt(m.costoUnit):''}</td>
+    <td class="right">${cost? fmt(cost):''}</td>
+    <td>
+      <button class="btn alt" onclick="editarIngrediente('${it.id}')">Editar</button>
+      <button class="btn primary" onclick="duplicarIngrediente('${it.id}')">Duplicar</button>
+      <button class="btn ghost" onclick="removeIngrediente('${it.id}')">Eliminar</button>
+    </td>
+  </tr>`; }).join('') || `<tr><td colspan="6" class="muted">Sin ingredientes</td></tr>`;
+}
+function editarIngrediente(id){ const it=(CT.receta.items||[]).find(x=>x.id===id); if(!it) return; CT.editingIngId=id; document.getElementById('ct-r-mat').value=it.matId; document.getElementById('ct-r-cant').value=it.cant; document.getElementById('ct-r-add-btn').textContent='Actualizar ingrediente'; }
+function duplicarIngrediente(id){ const it=(CT.receta.items||[]).find(x=>x.id===id); if(!it) return; const copy={...it,id:id_uniq()}; CT.receta.items.push(copy); renderRecetaItems(); recalcReceta(); }
+function recalcReceta(){
+  const nombre = (document.getElementById('ct-r-nombre')?.value||'').trim();
+  const rinde = Number(document.getElementById('ct-r-rinde')?.value||1);
+  const precio = Number(document.getElementById('ct-r-precio')?.value||0);
+  const uv = (document.getElementById('ct-r-uv')?.value||'').trim();
+  CT.receta.producto = nombre; CT.receta.rinde=rinde; CT.receta.precio=precio; CT.receta.uv = uv;
+  const mats = new Map((DB.costeo.materiales||[]).map(m=>[m.id,m]));
+  let totalPz=0, totalGr=0;
+  (CT.receta.items||[]).forEach(it=>{
+    const m=mats.get(it.matId); const unit=(m?.unidad||'').toLowerCase(); const cost = (m?.costoUnit||0)*(it.cant||0);
+    if(unit==='pieza') totalPz += cost; else totalGr += cost;
+  });
+  const indirectos = sum(CT.receta.indirectos||[], x=> Number(x.monto||0));
+  const costo = totalPz + totalGr + indirectos;
+  const costoUnit = (rinde>0) ? (costo/rinde) : 0;
+  const margenNeto = (precio>0 && costoUnit>0) ? (precio - costoUnit) : 0;
+  const costoMarg = (precio>0 && costoUnit>0) ? (costoUnit/precio)*100 : 0;
+
+  const $ = (n)=> (n>0 ? fmt(n) : '');
+  const pct = (n)=> (n>0 ? (Number(n).toFixed(2)+'%') : '');
+  const set = (id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
+  set('ct-tot-pz', $(totalPz));
+  set('ct-tot-gr', $(totalGr));
+  set('ct-ci-total', $(indirectos));
+  set('ct-r-costo', $(costo));
+  set('ct-r-costo-unit', $(costoUnit));
+  set('ct-r-precio-out', $(precio));
+  set('ct-r-margen-neto', $(margenNeto));
+  set('ct-r-costo-marg', costoMarg>0? (costoMarg.toFixed(2)+'%') : '');
+
+  // Dona distribución
+  const sumAll = totalPz + totalGr + indirectos;
+  const cont = document.getElementById('ct-ch-distrib');
+  if(cont){
+    if(sumAll<=0){ cont.closest('.card')?.classList.add('hidden'); }
+    else{
+      cont.closest('.card')?.classList.remove('hidden');
+      drawChartDoughnut('ct-ch-distrib', ['Piezas','Gr/ML','Indirectos'], [totalPz,totalGr,indirectos], ()=>{});
+    }
+  }
+}
+['ct-r-nombre','ct-r-rinde','ct-r-precio'].forEach(id=> document.getElementById(id)?.addEventListener('input', recalcReceta));
+function guardarReceta(){
+  const r = CT.receta; if(!r.producto || (r.items||[]).length===0){ alert('Captura producto e ingredientes'); return; }
+  const mats = new Map((DB.costeo.materiales||[]).map(m=>[m.id,m]));
+  const costo = sum(r.items||[], it=> (mats.get(it.matId)?.costoUnit||0) * (it.cant||0));
+  if(CT.editingRecId){
+    const idx = DB.costeo.recetas.findIndex(x=>x.id===CT.editingRecId);
+    if(idx>-1) DB.costeo.recetas[idx] = { ...DB.costeo.recetas[idx], producto:r.producto, rinde:r.rinde, uv:r.uv||'', precio:r.precio, costo, indirectos: JSON.parse(JSON.stringify(r.indirectos||[])), items: JSON.parse(JSON.stringify(r.items||[])), alergias: (document.getElementById('ct-r-alergias')?.value||''), prep:(document.getElementById('ct-r-prep')?.value||''), prepPuesto:(document.getElementById('ct-r-prep-puesto')?.value||''), apr:(document.getElementById('ct-r-apr')?.value||''), aprPuesto:(document.getElementById('ct-r-apr-puesto')?.value||'') };
+    CT.editingRecId=null; toast('Receta actualizada');
+  }else{
+    DB.costeo.recetas.push({ id:id_uniq(), producto:r.producto, rinde:r.rinde, uv:r.uv||'', precio:r.precio, costo, indirectos: JSON.parse(JSON.stringify(r.indirectos||[])), items: JSON.parse(JSON.stringify(r.items||[])), alergias:(document.getElementById('ct-r-alergias')?.value||''), prep:(document.getElementById('ct-r-prep')?.value||''), prepPuesto:(document.getElementById('ct-r-prep-puesto')?.value||''), apr:(document.getElementById('ct-r-apr')?.value||''), aprPuesto:(document.getElementById('ct-r-apr-puesto')?.value||'') }); toast('Receta guardada');
+  }
+  saveDB(); renderRecetasList(); nuevaReceta();
+}
+function renderRecetasList(){
+  const tb = document.querySelector('#tabla-recetas tbody'); if(!tb) return;
+  tb.innerHTML = (DB.costeo.recetas||[]).map(rc=>{
+    const margen = rc.precio>0? Math.round((1 - (rc.costo/(rc.precio||1))) * 100) : 0;
+    return `<tr>
+      <td>${rc.producto}</td>
+      <td class="right">${fmt(rc.costo)}</td>
+      <td class="right">${fmt(rc.precio||0)}</td>
+      <td class="right">${margen}%</td>
+      <td>
+        <button class="btn alt" onclick="cargarReceta('${rc.id}')">Cargar</button>
+        <button class="btn primary" onclick="duplicarReceta('${rc.id}')">Duplicar</button>
+        <button class="btn ghost" onclick="eliminarReceta('${rc.id}')">Eliminar</button>
+        <button class="btn ghost" onclick="exportarJSONReceta('${rc.id}')">Exportar</button>
+        <button class="btn ghost" onclick="exportarPDFReceta('${rc.id}')">PDF</button>
+      </td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="5" class="muted">Sin recetas</td></tr>`;
+}
+function cargarReceta(id){
+  const rc = DB.costeo.recetas.find(x=>x.id===id); if(!rc) return;
+  CT.editingRecId=id;
+  document.getElementById('ct-r-nombre').value=rc.producto||'';
+  document.getElementById('ct-r-rinde').value=rc.rinde||1;
+  document.getElementById('ct-r-precio').value=rc.precio||0;
+  document.getElementById('ct-r-uv').value=rc.uv||'';
+  document.getElementById('ct-r-alergias').value=rc.alergias||'';
+  document.getElementById('ct-r-prep').value=rc.prep||'';
+  document.getElementById('ct-r-prep-puesto').value=rc.prepPuesto||'';
+  document.getElementById('ct-r-apr').value=rc.apr||'';
+  document.getElementById('ct-r-apr-puesto').value=rc.aprPuesto||'';
+  CT.receta={ producto:rc.producto, rinde:rc.rinde||1, precio:rc.precio||0, uv:rc.uv||'', items: JSON.parse(JSON.stringify(rc.items||[])), indirectos: JSON.parse(JSON.stringify(rc.indirectos||[])) };
+  renderRecetaItems(); renderIndirectos(); recalcReceta(); toast('Receta cargada');
+}
+function duplicarReceta(id){ const rc = DB.costeo.recetas.find(x=>x.id===id); if(!rc) return; const copy = { ...rc, id:id_uniq(), producto: rc.producto + ' (copia)' }; DB.costeo.recetas.unshift(copy); saveDB(); renderRecetasList(); toast('Receta duplicada'); }
+function eliminarReceta(id){ if(!confirm('¿Eliminar receta?')) return; DB.costeo.recetas = DB.costeo.recetas.filter(x=>x.id!==id); saveDB(); renderRecetasList(); toast('Receta eliminada'); }
+
+</script>
+</body>
+</html>

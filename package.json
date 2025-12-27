@@ -1,0 +1,12 @@
+{
+  "name": "panera-control-ventas",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Panera control de ventas",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@netlify/blobs": "latest"
+  }
+}
