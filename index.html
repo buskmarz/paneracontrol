@@ -824,6 +824,7 @@
       </div>
       <div class="toolbar" style="margin-top:10px">
         <button class="btn primary" onclick="guardarConfig()">Guardar configuración</button>
+        <button class="btn alt" onclick="exportarJSON()">Exportar respaldo (.json)</button>
         <button class="btn ghost" onclick="resetearTodo()">Borrar todo (peligro)</button>
       </div>
     </section>
@@ -1580,13 +1581,14 @@ function guardarCliente(){
   const notas = document.getElementById("c-notas").value.trim();
 
   let c = DB.clientes.find(x=>x.nombre.toLowerCase()===nombre.toLowerCase());
-  if(!c){
+  if(!c && (tel || dir)){
     c = DB.clientes.find(x=> (x.telefono||"")===tel && (x.direccion||"")===dir);
   }
   if(!c){ c = { id:id(), creadoEn:new Date().toISOString() }; DB.clientes.push(c); }
   c.nombre = nombre; c.telefono = tel; c.direccion = dir; c.notas = notas;
   saveDB(); renderClientesDatalist(); renderClientes();
   toast("Cliente guardado");
+  limpiarCliente();
 }
 function limpiarCliente(){ ["c-nombre","c-tel","c-dir","c-notas"].forEach(id=>document.getElementById(id).value=""); }
 function exportarCSVClientes(){
