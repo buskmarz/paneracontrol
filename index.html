@@ -1012,7 +1012,9 @@ function initAuth(){
   document.getElementById("auth-pass")?.addEventListener("input", ()=>{ if(err) err.textContent = ""; });
   if(isAuthed()) hideAuth(); else showAuth();
 }
-function authHeaders(){ return { Authorization: `Basic ${AUTH_BASIC}` }; }
+function authHeaders(){
+  return { Authorization: `Basic ${AUTH_BASIC}`, "X-Panera-Auth": AUTH_BASIC };
+}
 function fillSelectFiltro(id_, arr, labelAll="(todos)"){
   const s = document.getElementById(id_);
   if(!s) return;
@@ -1139,7 +1141,11 @@ async function fetchWithTimeout(url, options={}, timeoutMs=REMOTE.timeoutMs){
 }
 async function fetchRemoteDB(){
   try{
-    const res = await fetchWithTimeout(REMOTE.endpoint, { headers: { "Accept":"application/json", ...authHeaders() } });
+    const res = await fetchWithTimeout(REMOTE.endpoint, { headers: { "Accept":"application/json", ...authHeaders() }, cache:"no-store" });
+    if(res.status === 401){
+      remoteWarn("Autenticacion fallida en backend. Revisa PANERA_AUTH.");
+      return null;
+    }
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     return (data && data.db) ? data.db : null;
@@ -1157,6 +1163,10 @@ async function pushRemoteDB(){
       headers: { "Content-Type":"application/json", ...authHeaders() },
       body: JSON.stringify({ db: DB })
     });
+    if(res.status === 401){
+      remoteWarn("Autenticacion fallida en backend. Revisa PANERA_AUTH.");
+      return false;
+    }
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     return true;
   }catch(e){
