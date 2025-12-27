@@ -1146,6 +1146,15 @@ async function fetchRemoteDB(){
       remoteWarn("Autenticacion fallida en backend. Revisa PANERA_AUTH.");
       return null;
     }
+    if(res.status === 503){
+      const data = await res.json().catch(()=>null);
+      if(data && data.error === "blobs_not_configured"){
+        remoteWarn("Backend sin Blobs. Activa Netlify Blobs o define PANERA_BLOBS_SITE_ID/PANERA_BLOBS_TOKEN.");
+      }else{
+        remoteWarn("Backend no disponible; usando modo local.");
+      }
+      return null;
+    }
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     return (data && data.db) ? data.db : null;
@@ -1165,6 +1174,15 @@ async function pushRemoteDB(){
     });
     if(res.status === 401){
       remoteWarn("Autenticacion fallida en backend. Revisa PANERA_AUTH.");
+      return false;
+    }
+    if(res.status === 503){
+      const data = await res.json().catch(()=>null);
+      if(data && data.error === "blobs_not_configured"){
+        remoteWarn("Backend sin Blobs. Activa Netlify Blobs o define PANERA_BLOBS_SITE_ID/PANERA_BLOBS_TOKEN.");
+      }else{
+        remoteWarn("No se pudo guardar en backend. Se quedo en local.");
+      }
       return false;
     }
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
