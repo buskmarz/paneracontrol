@@ -9,12 +9,14 @@ const BASE_HEADERS = {
 };
 
 // PANERA_AUTH can be "panera:panque" or its base64 value.
-function isAuthorized(event){
-  const expected = process.env.PANERA_AUTH;
-  if(!expected) return true;
+function normalizeAuth(event){
   const auth = (event.headers.authorization || event.headers.Authorization || "").trim();
-  if(!auth.startsWith("Basic ")) return false;
-  const incoming = auth.slice(6).trim();
+  if(auth.startsWith("Basic ")) return auth.slice(6).trim();
+  const alt = (event.headers["x-panera-auth"] || event.headers["X-Panera-Auth"] || "").trim();
+  return alt || "";
+}
+function authMatches(incoming, expected){
+  if(!incoming) return false;
   if(incoming === expected) return true;
   try{
     const decoded = Buffer.from(incoming, "base64").toString("utf8");
@@ -22,6 +24,12 @@ function isAuthorized(event){
   }catch(e){
     return false;
   }
+}
+function isAuthorized(event){
+  const expected = process.env.PANERA_AUTH;
+  if(!expected) return true;
+  const incoming = normalizeAuth(event);
+  return authMatches(incoming, expected);
 }
 
 function jsonResponse(statusCode, payload, extraHeaders={}){
