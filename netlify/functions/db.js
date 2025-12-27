@@ -9,8 +9,21 @@ const BASE_HEADERS = {
 };
 
 function getStoreConfig(){
-  const siteID = (process.env.NETLIFY_SITE_ID || process.env.PANERA_BLOBS_SITE_ID || "").trim();
-  const token = (process.env.NETLIFY_BLOBS_TOKEN || process.env.NETLIFY_ACCESS_TOKEN || process.env.NETLIFY_AUTH_TOKEN || process.env.PANERA_BLOBS_TOKEN || "").trim();
+  const siteID = (
+    process.env.NETLIFY_SITE_ID ||
+    process.env.SITE_ID ||
+    process.env.PANERA_BLOBS_SITE_ID ||
+    ""
+  ).trim();
+  const token = (
+    process.env.NETLIFY_BLOBS_TOKEN ||
+    process.env.NETLIFY_ACCESS_TOKEN ||
+    process.env.NETLIFY_AUTH_TOKEN ||
+    process.env.NETLIFY_PERSONAL_ACCESS_TOKEN ||
+    process.env.PERSONAL_ACCESS_TOKEN ||
+    process.env.PANERA_BLOBS_TOKEN ||
+    ""
+  ).trim();
   if(siteID && token) return { siteID, token };
   return null;
 }
