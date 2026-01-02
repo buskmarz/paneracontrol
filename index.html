@@ -95,6 +95,11 @@
   .envio-legend-text{display:flex;flex-direction:column;gap:2px}
   .envio-legend .right{margin-left:auto;font-weight:700}
   #envio-zonas-table input{padding:6px;border-radius:8px}
+  .envio-metrics{grid-template-columns:repeat(3,1fr)}
+  .envio-metrics div{background:#ffffff;border:2px solid var(--p-deep);box-shadow:0 6px 18px rgba(0,0,0,.08)}
+  .envio-metrics b{color:var(--p-deep);text-transform:uppercase;letter-spacing:.4px}
+  .envio-metrics .right{font-size:18px;font-weight:800;color:var(--ink)}
+  .envio-metrics div div{min-height:22px}
 
   @media (max-width: 900px){
     .envio-grid, .envio-grid-2{grid-template-columns:1fr}
@@ -195,6 +200,9 @@
   html[data-theme="dark"] .toast{background:#0f172a;border-color:#1f2937;color:var(--ink)}
   html[data-theme="dark"] .auth-card{background:#0f172a;border-color:#1f2937}
   html[data-theme="dark"] .envio-rings{background:radial-gradient(closest-side, rgba(102,182,204,.18), transparent 70%)}
+  html[data-theme="dark"] .envio-metrics div{background:#0b1320;border-color:#4ba9c4}
+  html[data-theme="dark"] .envio-metrics b{color:#8bd0e1}
+  html[data-theme="dark"] .envio-metrics .right{color:#f8fafc}
 </style>
 </head>
 <body>
@@ -713,7 +721,7 @@
             <button class="btn primary" onclick="cotizarEnvioRapido()">Cotizar</button>
             <button class="btn ghost" onclick="limpiarEnvioRapido()">Limpiar</button>
           </div>
-          <div class="totals compact" style="margin-top:8px;grid-template-columns:repeat(3,1fr)">
+          <div class="totals compact envio-metrics" style="margin-top:8px">
             <div><b>Distancia ruta</b><div id="envio-quick-dist" class="right"></div></div>
             <div><b>Zona</b><div id="envio-quick-zone" class="right"></div></div>
             <div><b>Precio</b><div id="envio-quick-price" class="right"></div></div>
