@@ -1269,6 +1269,12 @@ function normalizeDB(){
   if(!Array.isArray(DB.productos) || DB.productos.length===0){
     DB.productos = SEED.map(x => ({...x, activo:true}));
   }
+  // Agregar roscas si no existen (sin afectar catálogo actual)
+  const roscasSeed = SEED.filter(p => p.categoria === "Roscas");
+  roscasSeed.forEach(r => {
+    const exists = DB.productos.some(p => (p.producto || "").toLowerCase() === r.producto.toLowerCase());
+    if(!exists){ DB.productos.push({ ...r, activo:true }); }
+  });
   if(!DB.config) DB.config = { prefijo:"PAN" };
   // Defaults de nuevas configuraciones
   if(DB.config.seriePorDia!==undefined) delete DB.config.seriePorDia;
