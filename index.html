@@ -23,6 +23,7 @@
   :root{
     --p-light:#E6E6E6; --p-sky:#C3D8E0; --p-blue:#66B6CC; --p-deep:#2B4E59; --p-gray:#819DA6; --ink:#1f2937; --bg:#f7fafc;
     --ok:#16a34a; --warn:#f59e0b; --err:#dc2626; --shadow:0 6px 20px rgba(0,0,0,.08);
+    --envio-ring-1:#CDE7EF; --envio-ring-2:#A9D6E6; --envio-ring-3:#86C3DB; --envio-ring-4:#5FA9C8; --envio-ring-5:#2B4E59;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:Montserrat,system-ui,Segoe UI,Roboto,Helvetica,Arial}
@@ -80,6 +81,26 @@
   .btn:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
   .tag{font-size:12px;background:var(--p-sky);color:#0f172a;padding:3px 8px;border-radius:999px}
   .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#eef6f9}
+
+  /* Envio por anillos */
+  .envio-grid{display:grid;gap:12px;grid-template-columns:1.1fr .9fr}
+  .envio-grid-2{display:grid;gap:12px;grid-template-columns:1fr 1fr}
+  .envio-ring-wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .envio-rings{width:100%;max-width:260px;aspect-ratio:1/1;border-radius:16px;background:radial-gradient(closest-side, rgba(102,182,204,.12), transparent 70%);display:flex;align-items:center;justify-content:center}
+  #envio-ring-svg{width:100%;height:100%}
+  .envio-legend{width:100%}
+  .envio-legend li{border-bottom:0;padding:6px 0;justify-content:flex-start;gap:10px}
+  .envio-dot{width:12px;height:12px;border-radius:999px;flex:0 0 auto}
+  .envio-dot.special{background:transparent;border:2px dashed var(--p-gray)}
+  .envio-legend-text{display:flex;flex-direction:column;gap:2px}
+  .envio-legend .right{margin-left:auto;font-weight:700}
+  #envio-zonas-table input{padding:6px;border-radius:8px}
+
+  @media (max-width: 900px){
+    .envio-grid, .envio-grid-2{grid-template-columns:1fr}
+    .envio-legend li{flex-wrap:wrap}
+    .envio-legend .right{margin-left:0}
+  }
 
   /* TOTALS & KPI */
   .totals{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
@@ -173,6 +194,7 @@
   html[data-theme="dark"] .ac-item:hover{background:#0e1a26}
   html[data-theme="dark"] .toast{background:#0f172a;border-color:#1f2937;color:var(--ink)}
   html[data-theme="dark"] .auth-card{background:#0f172a;border-color:#1f2937}
+  html[data-theme="dark"] .envio-rings{background:radial-gradient(closest-side, rgba(102,182,204,.18), transparent 70%)}
 </style>
 </head>
 <body>
@@ -605,6 +627,115 @@
 
   <!-- COTIZADOR -->
   <section id="tab-cotizador" class="tab hidden">
+    <section class="card" id="envio-cotizador">
+      <div class="flex" style="justify-content:space-between; align-items:center; flex-wrap:wrap">
+        <div>
+          <h3 style="margin:0">Cotizador de envio por anillos</h3>
+          <small class="muted">Distancia por ruta en coche. Pega solo coordenadas (lat, lon).</small>
+        </div>
+        <div class="pill"><span class="tag">MXN</span> Ruta en coche</div>
+      </div>
+
+      <div class="envio-grid" style="margin-top:10px">
+        <div>
+          <div class="grid g3">
+            <div><label>Origen (nombre)</label><input id="envio-origin-name" placeholder="Atzala"></div>
+            <div><label>Lat</label><input id="envio-origin-lat" type="number" step="0.000001" placeholder="19.0476062"></div>
+            <div><label>Lon</label><input id="envio-origin-lon" type="number" step="0.000001" placeholder="-98.2794810"></div>
+          </div>
+
+          <div style="margin-top:8px">
+            <label>Zonas (km y precio)</label>
+            <table id="envio-zonas-table">
+              <thead><tr><th>Zona</th><th class="right">Min km</th><th class="right">Max km</th><th class="right">Precio (MXN)</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td>Zona 1</td>
+                  <td class="right"><input id="envio-zone-min-0" type="number" min="0" step="0.1"></td>
+                  <td class="right"><input id="envio-zone-max-0" type="number" min="0" step="0.1"></td>
+                  <td class="right"><input id="envio-zone-price-0" type="number" min="0" step="0.01"></td>
+                </tr>
+                <tr>
+                  <td>Zona 2</td>
+                  <td class="right"><input id="envio-zone-min-1" type="number" min="0" step="0.1"></td>
+                  <td class="right"><input id="envio-zone-max-1" type="number" min="0" step="0.1"></td>
+                  <td class="right"><input id="envio-zone-price-1" type="number" min="0" step="0.01"></td>
+                </tr>
+                <tr>
+                  <td>Zona 3</td>
+                  <td class="right"><input id="envio-zone-min-2" type="number" min="0" step="0.1"></td>
+                  <td class="right"><input id="envio-zone-max-2" type="number" min="0" step="0.1"></td>
+                  <td class="right"><input id="envio-zone-price-2" type="number" min="0" step="0.01"></td>
+                </tr>
+                <tr>
+                  <td>Zona 4</td>
+                  <td class="right"><input id="envio-zone-min-3" type="number" min="0" step="0.1"></td>
+                  <td class="right"><input id="envio-zone-max-3" type="number" min="0" step="0.1"></td>
+                  <td class="right"><input id="envio-zone-price-3" type="number" min="0" step="0.01"></td>
+                </tr>
+                <tr>
+                  <td>Zona 5</td>
+                  <td class="right"><input id="envio-zone-min-4" type="number" min="0" step="0.1"></td>
+                  <td class="right"><input id="envio-zone-max-4" type="number" min="0" step="0.1"></td>
+                  <td class="right"><input id="envio-zone-price-4" type="number" min="0" step="0.01"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="grid g3" style="margin-top:8px">
+            <div><label>Cotizacion especial (+ km)</label><input id="envio-extra-km" type="number" min="0" step="0.1"></div>
+            <div><label>Precio especial (MXN)</label><input id="envio-extra-price" type="number" min="0" step="0.01" placeholder="Opcional"></div>
+            <div class="flex" style="align-items:flex-end">
+              <button class="btn primary" onclick="guardarEnvioConfig()">Guardar configuracion</button>
+              <button class="btn ghost" onclick="restaurarEnvioEjemplo()">Restaurar ejemplo</button>
+            </div>
+          </div>
+          <small class="muted">Fuente de ruta: OSRM (carretera). Requiere internet.</small>
+        </div>
+
+        <div class="envio-ring-wrap">
+          <div class="envio-rings">
+            <svg id="envio-ring-svg" viewBox="0 0 220 220" role="img" aria-label="Anillos de tarifa"></svg>
+          </div>
+          <ul id="envio-ring-legend" class="list envio-legend"></ul>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="envio-grid-2">
+        <div>
+          <h4 style="margin:0 0 6px">Cotizacion rapida</h4>
+          <label>Coordenadas destino (lat, lon)</label>
+          <input id="envio-quick-input" placeholder="19.0476062, -98.2794810">
+          <div class="toolbar" style="margin-top:8px">
+            <button class="btn primary" onclick="cotizarEnvioRapido()">Cotizar</button>
+            <button class="btn ghost" onclick="limpiarEnvioRapido()">Limpiar</button>
+          </div>
+          <div class="totals compact" style="margin-top:8px;grid-template-columns:repeat(3,1fr)">
+            <div><b>Distancia ruta</b><div id="envio-quick-dist" class="right"></div></div>
+            <div><b>Zona</b><div id="envio-quick-zone" class="right"></div></div>
+            <div><b>Precio</b><div id="envio-quick-price" class="right"></div></div>
+          </div>
+          <div id="envio-quick-note" class="muted" style="margin-top:4px"></div>
+        </div>
+        <div>
+          <h4 style="margin:0 0 6px">Lista de pedidos</h4>
+          <label>Pega uno por linea: Cliente | lat, lon</label>
+          <textarea id="envio-bulk-input" rows="6" placeholder="Cliente A | 19.0512, -98.2764"></textarea>
+          <div class="toolbar" style="margin-top:8px">
+            <button class="btn primary" onclick="cotizarEnviosLista()">Cotizar lista</button>
+            <button class="btn ghost" onclick="limpiarEnvioLista()">Limpiar</button>
+            <button class="btn alt" onclick="cargarEjemploEnvio()">Cargar ejemplo</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+      <div id="envio-bulk-output"></div>
+    </section>
+
     <section class="card">
       <div class="flex" style="justify-content:space-between; align-items:center">
         <h3 style="margin:0">Materiales (insumos)</h3>
@@ -1057,6 +1188,18 @@ const SEED = [
   {categoria:"Para Perritos", producto:"Pastel de hueso", variantes:{UNIDAD:260}},
 ];
 
+const ENVIO_DEFAULT = {
+  origin: { name:"Atzala", lat:19.0476062, lon:-98.2794810 },
+  zones: [
+    { name:"Zona 1", min:0, max:3, price:40 },
+    { name:"Zona 2", min:3, max:6, price:60 },
+    { name:"Zona 3", min:6, max:9, price:80 },
+    { name:"Zona 4", min:9, max:12, price:100 },
+    { name:"Zona 5", min:12, max:15, price:150 },
+  ],
+  extra: { km:15, price:0 }
+};
+
 /*******************************
  * BASE DE DATOS LOCAL
  *******************************/
@@ -1071,6 +1214,35 @@ const DB = {
   costeo: { materiales: [], recetas: [] },
   meta: { updatedAt: null }
 };
+
+function normalizeEnvioConfig(){
+  if(!DB.config) DB.config = { prefijo:"PAN" };
+  const base = JSON.parse(JSON.stringify(ENVIO_DEFAULT));
+  if(!DB.config.envioRings || typeof DB.config.envioRings !== "object"){
+    DB.config.envioRings = base;
+    return;
+  }
+  const cfg = DB.config.envioRings;
+  if(!cfg.origin || typeof cfg.origin !== "object") cfg.origin = base.origin;
+  if(!Array.isArray(cfg.zones) || cfg.zones.length !== 5) cfg.zones = base.zones;
+  if(!cfg.extra || typeof cfg.extra !== "object") cfg.extra = base.extra;
+  cfg.origin.name = String(cfg.origin.name || base.origin.name).trim();
+  const lat = Number(cfg.origin.lat); cfg.origin.lat = Number.isFinite(lat) ? lat : base.origin.lat;
+  const lon = Number(cfg.origin.lon); cfg.origin.lon = Number.isFinite(lon) ? lon : base.origin.lon;
+  cfg.zones = cfg.zones.map((z,i)=>{
+    const fallback = base.zones[i] || { name:`Zona ${i+1}`, min:0, max:0, price:0 };
+    return {
+      name: (z && z.name) ? z.name : fallback.name,
+      min: Number.isFinite(Number(z?.min)) ? Number(z.min) : fallback.min,
+      max: Number.isFinite(Number(z?.max)) ? Number(z.max) : fallback.max,
+      price: Number.isFinite(Number(z?.price)) ? Number(z.price) : fallback.price
+    };
+  });
+  const extraKm = Number(cfg.extra.km);
+  const extraPrice = Number(cfg.extra.price);
+  cfg.extra.km = Number.isFinite(extraKm) ? extraKm : base.extra.km;
+  cfg.extra.price = Number.isFinite(extraPrice) ? extraPrice : base.extra.price;
+}
 
 function normalizeDB(){
   if(!DB.meta) DB.meta = { updatedAt: null };
@@ -1093,6 +1265,7 @@ function normalizeDB(){
   if(DB.config.autoPrintTicket===undefined) DB.config.autoPrintTicket = false;
   if(!Array.isArray(DB.config.metodosVentas)) DB.config.metodosVentas = METODOS_DEFAULT_VENTAS.slice();
   if(!Array.isArray(DB.config.metodosGastos)) DB.config.metodosGastos = METODOS_DEFAULT_GASTOS.slice();
+  normalizeEnvioConfig();
 }
 
 function loadDB(){
@@ -1288,7 +1461,7 @@ function initUI(){
       document.getElementById(btn.dataset.tab).classList.remove("hidden");
       if(btn.dataset.tab==="tab-dashboard") renderDashboard();
       if(btn.dataset.tab==="tab-calendario"){ renderCalendario(); renderEventos(); }
-      if(btn.dataset.tab==="tab-cotizador"){ renderMateriales(); renderRecetasList(); renderSelectMateriales(); recalcReceta(); }
+      if(btn.dataset.tab==="tab-cotizador"){ renderMateriales(); renderRecetasList(); renderSelectMateriales(); recalcReceta(); initEnvioUI(); }
     };
   });
 
@@ -1328,6 +1501,7 @@ function initUI(){
   renderMateriales(); renderRecetasList(); renderSelectMateriales();
   renderCalendario();
   renderEventos();
+  initEnvioUI();
 
   // Índice de productos para búsqueda rápida
   rebuildProductIndex();
@@ -2660,6 +2834,346 @@ function seedMarketingCalendar(){
 
   saveDB(); renderEventos(); renderCalendario();
   toast(`${added} eventos agregados/actualizados`, 'ok');
+}
+
+/*******************************
+ * COTIZADOR ENVIO POR ANILLOS
+ *******************************/
+function readEnvioConfigFromUI(){
+  const base = DB.config.envioRings || ENVIO_DEFAULT;
+  const nameEl = document.getElementById('envio-origin-name');
+  if(!nameEl) return JSON.parse(JSON.stringify(base));
+  const numFromInput = (el, fallback)=>{
+    if(!el) return fallback;
+    const raw = el.value;
+    if(raw === '' || raw === null || raw === undefined) return fallback;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : fallback;
+  };
+  const latEl = document.getElementById('envio-origin-lat');
+  const lonEl = document.getElementById('envio-origin-lon');
+  const origin = {
+    name: (nameEl.value || base.origin.name).trim() || base.origin.name,
+    lat: numFromInput(latEl, base.origin.lat),
+    lon: numFromInput(lonEl, base.origin.lon)
+  };
+  const zones = (base.zones || []).map((z,i)=>{
+    const minEl = document.getElementById(`envio-zone-min-${i}`);
+    const maxEl = document.getElementById(`envio-zone-max-${i}`);
+    const priceEl = document.getElementById(`envio-zone-price-${i}`);
+    const min = numFromInput(minEl, z.min);
+    const max = numFromInput(maxEl, z.max);
+    const price = numFromInput(priceEl, z.price);
+    return { name: z.name || `Zona ${i+1}`, min, max, price };
+  });
+  const extraKmEl = document.getElementById('envio-extra-km');
+  const extraPriceEl = document.getElementById('envio-extra-price');
+  const extraKm = numFromInput(extraKmEl, base.extra?.km || 0);
+  const extraPrice = numFromInput(extraPriceEl, base.extra?.price || 0);
+  return { origin, zones, extra: { km: extraKm, price: extraPrice } };
+}
+
+function renderEnvioConfig(){
+  const cfg = DB.config.envioRings || ENVIO_DEFAULT;
+  const nameEl = document.getElementById('envio-origin-name');
+  if(!nameEl) return;
+  const latEl = document.getElementById('envio-origin-lat');
+  const lonEl = document.getElementById('envio-origin-lon');
+  nameEl.value = cfg.origin?.name || 'Atzala';
+  if(latEl) latEl.value = cfg.origin?.lat ?? '';
+  if(lonEl) lonEl.value = cfg.origin?.lon ?? '';
+  (cfg.zones || []).forEach((z,i)=>{
+    const minEl = document.getElementById(`envio-zone-min-${i}`);
+    const maxEl = document.getElementById(`envio-zone-max-${i}`);
+    const priceEl = document.getElementById(`envio-zone-price-${i}`);
+    if(minEl) minEl.value = z.min ?? '';
+    if(maxEl) maxEl.value = z.max ?? '';
+    if(priceEl) priceEl.value = z.price ?? '';
+  });
+  const extraKmEl = document.getElementById('envio-extra-km');
+  const extraPriceEl = document.getElementById('envio-extra-price');
+  if(extraKmEl) extraKmEl.value = cfg.extra?.km ?? '';
+  if(extraPriceEl) extraPriceEl.value = cfg.extra?.price ?? '';
+}
+
+function renderEnvioRings(cfg){
+  const svg = document.getElementById('envio-ring-svg');
+  const legend = document.getElementById('envio-ring-legend');
+  if(!svg || !legend) return;
+  const zones = (cfg.zones || []).map((z,i)=>({
+    name: z.name || `Zona ${i+1}`,
+    min: Number(z.min)||0,
+    max: Number(z.max)||0,
+    price: Number(z.price)||0,
+    color: `var(--envio-ring-${i+1})`
+  }));
+  const maxZone = Math.max(...zones.map(z=>z.max), 1);
+  const center = 110;
+  const maxR = 85;
+  const scale = maxZone > 0 ? (maxR / maxZone) : 0;
+  const circles = zones.slice().sort((a,b)=>b.max-a.max).map(z=>{
+    const r = Math.max(0, z.max) * scale;
+    return `<circle cx="${center}" cy="${center}" r="${r.toFixed(2)}" fill="none" stroke="${z.color}" stroke-width="12" opacity="0.9"></circle>`;
+  }).join('');
+  svg.innerHTML = `${circles}<circle cx="${center}" cy="${center}" r="3.5" fill="var(--p-deep)"></circle>`;
+
+  const specialKm = Math.max(Number(cfg.extra?.km || 0), maxZone);
+  const specialPrice = Number(cfg.extra?.price || 0);
+  const zoneRows = zones.map((z,i)=>{
+    const range = `${z.min}-${z.max} km`;
+    const priceText = Number.isFinite(z.price) ? fmt(z.price) : '-';
+    return `<li>
+      <span class="envio-dot" style="background:${z.color}"></span>
+      <div class="envio-legend-text"><b>${z.name}</b><span class="muted">${range}</span></div>
+      <div class="right">${priceText}</div>
+    </li>`;
+  }).join('');
+  const specialText = specialPrice > 0 ? fmt(specialPrice) : 'Cotizacion especial';
+  const specialRow = `<li>
+    <span class="envio-dot special"></span>
+    <div class="envio-legend-text"><b>+${specialKm} km</b><span class="muted">Fuera de rango</span></div>
+    <div class="right">${specialText}</div>
+  </li>`;
+  legend.innerHTML = zoneRows + specialRow;
+}
+
+function guardarEnvioConfig(){
+  DB.config.envioRings = readEnvioConfigFromUI();
+  saveDB();
+  renderEnvioRings(DB.config.envioRings);
+  toast('Configuracion de envio guardada');
+}
+
+function restaurarEnvioEjemplo(){
+  DB.config.envioRings = JSON.parse(JSON.stringify(ENVIO_DEFAULT));
+  saveDB();
+  renderEnvioConfig();
+  renderEnvioRings(DB.config.envioRings);
+  toast('Ejemplo cargado');
+}
+
+function initEnvioUI(){
+  const root = document.getElementById('envio-cotizador');
+  if(!root) return;
+  renderEnvioConfig();
+  renderEnvioRings(readEnvioConfigFromUI());
+  if(initEnvioUI.bound) return;
+  initEnvioUI.bound = true;
+  const ids = ['envio-origin-name','envio-origin-lat','envio-origin-lon','envio-extra-km','envio-extra-price'];
+  ids.forEach(id=> document.getElementById(id)?.addEventListener('input', ()=> renderEnvioRings(readEnvioConfigFromUI())));
+  for(let i=0; i<5; i++){
+    ['min','max','price'].forEach(k=>{
+      document.getElementById(`envio-zone-${k}-${i}`)?.addEventListener('input', ()=> renderEnvioRings(readEnvioConfigFromUI()));
+    });
+  }
+  document.getElementById('envio-quick-input')?.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){ e.preventDefault(); cotizarEnvioRapido(); }
+  });
+}
+
+function parseCoordPair(text){
+  const nums = (text.match(/-?\d+(?:\.\d+)?/g) || []).map(n=>Number(n));
+  if(nums.length < 2) return null;
+  for(let i=0; i<nums.length-1; i++){
+    const lat = nums[i];
+    const lon = nums[i+1];
+    if(Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180){
+      return { lat, lon };
+    }
+  }
+  return null;
+}
+
+function parseEnvioLine(line){
+  const clean = (line || '').trim();
+  if(!clean) return null;
+  const parts = clean.split(/[\t|;]/).map(p=>p.trim()).filter(Boolean);
+  if(parts.length > 1){
+    const idx = parts.findIndex(p=>parseCoordPair(p));
+    if(idx >= 0){
+      const coords = parseCoordPair(parts[idx]);
+      const label = parts.filter((_,i)=>i!==idx).join(' ');
+      return { label, coords };
+    }
+  }
+  const coords = parseCoordPair(clean);
+  if(!coords) return null;
+  let label = '';
+  const firstDigit = clean.search(/-?\d/);
+  if(firstDigit > 0 && /[a-zA-Z]/.test(clean.slice(0, firstDigit))){
+    label = clean.slice(0, firstDigit).replace(/[,;]/g,'').trim();
+  }
+  return { label, coords };
+}
+
+function getEnvioQuote(cfg, km){
+  const zones = (cfg.zones || []).map((z,i)=>({
+    name: z.name || `Zona ${i+1}`,
+    min: Number(z.min)||0,
+    max: Number(z.max)||0,
+    price: Number(z.price)||0
+  }));
+  const sorted = zones.slice().sort((a,b)=>a.max-b.max);
+  let match = sorted.find(z=> km >= z.min && km <= z.max);
+  if(!match) match = sorted.find(z=> km <= z.max);
+  const maxZone = Math.max(...zones.map(z=>z.max), 0);
+  const specialKm = Math.max(Number(cfg.extra?.km || 0), maxZone);
+  if(match){
+    return {
+      zoneName: match.name,
+      range: `${match.min}-${match.max} km`,
+      price: match.price,
+      priceText: fmt(match.price),
+      label: `${match.name} (${match.min}-${match.max} km)`,
+      special: false
+    };
+  }
+  const specialPrice = Number(cfg.extra?.price || 0);
+  return {
+    zoneName: `+${specialKm} km`,
+    range: `>${maxZone} km`,
+    price: specialPrice,
+    priceText: specialPrice > 0 ? fmt(specialPrice) : 'Cotizacion especial',
+    label: `Especial +${specialKm} km`,
+    special: true
+  };
+}
+
+async function getRutaKm(origin, dest){
+  const url = `https://router.project-osrm.org/route/v1/driving/${origin.lon},${origin.lat};${dest.lon},${dest.lat}?overview=false&alternatives=false&steps=false`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('No se pudo calcular la ruta');
+  const data = await res.json();
+  const dist = data?.routes?.[0]?.distance;
+  if(!Number.isFinite(dist)) throw new Error('Ruta no disponible');
+  return dist / 1000;
+}
+
+async function cotizarEnvioRapido(){
+  const input = document.getElementById('envio-quick-input');
+  const distEl = document.getElementById('envio-quick-dist');
+  const zoneEl = document.getElementById('envio-quick-zone');
+  const priceEl = document.getElementById('envio-quick-price');
+  const noteEl = document.getElementById('envio-quick-note');
+  if(!input || !distEl || !zoneEl || !priceEl || !noteEl) return;
+  const coords = parseCoordPair(input.value || '');
+  if(!coords){
+    distEl.textContent = '';
+    zoneEl.textContent = '';
+    priceEl.textContent = '';
+    noteEl.textContent = 'Coordenadas invalidas.';
+    toast('Coordenadas invalidas', 'err');
+    return;
+  }
+  distEl.textContent = '';
+  zoneEl.textContent = '';
+  priceEl.textContent = '';
+  noteEl.textContent = 'Calculando ruta...';
+  const cfg = readEnvioConfigFromUI();
+  try{
+    const km = await getRutaKm(cfg.origin, coords);
+    const quote = getEnvioQuote(cfg, km);
+    distEl.textContent = `${km.toFixed(2)} km`;
+    zoneEl.textContent = quote.label;
+    priceEl.textContent = quote.priceText;
+    noteEl.textContent = quote.special ? 'Fuera de rango. Requiere cotizacion especial.' : '';
+  }catch(e){
+    noteEl.textContent = e?.message || 'No se pudo calcular la ruta.';
+    toast('No se pudo calcular la ruta', 'err');
+  }
+}
+
+function limpiarEnvioRapido(){
+  const input = document.getElementById('envio-quick-input');
+  const distEl = document.getElementById('envio-quick-dist');
+  const zoneEl = document.getElementById('envio-quick-zone');
+  const priceEl = document.getElementById('envio-quick-price');
+  const noteEl = document.getElementById('envio-quick-note');
+  if(input) input.value = '';
+  if(distEl) distEl.textContent = '';
+  if(zoneEl) zoneEl.textContent = '';
+  if(priceEl) priceEl.textContent = '';
+  if(noteEl) noteEl.textContent = '';
+}
+
+async function cotizarEnviosLista(){
+  const input = document.getElementById('envio-bulk-input');
+  const out = document.getElementById('envio-bulk-output');
+  if(!input || !out) return;
+  const lines = (input.value || '').split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  if(lines.length === 0){
+    toast('Pega al menos una linea', 'warn');
+    return;
+  }
+  const cfg = readEnvioConfigFromUI();
+  const results = [];
+  for(let i=0; i<lines.length; i++){
+    out.innerHTML = `<div class="muted">Calculando ${i+1}/${lines.length} rutas...</div>`;
+    const parsed = parseEnvioLine(lines[i]);
+    if(!parsed){
+      results.push({ idx:i+1, label: lines[i], error:'Coordenadas invalidas' });
+      continue;
+    }
+    try{
+      const km = await getRutaKm(cfg.origin, parsed.coords);
+      const quote = getEnvioQuote(cfg, km);
+      results.push({ idx:i+1, label: parsed.label, coords: parsed.coords, km, quote });
+    }catch(e){
+      results.push({ idx:i+1, label: parsed.label, coords: parsed.coords, error: e?.message || 'Ruta no disponible' });
+    }
+  }
+  renderEnvioBulkResults(results);
+}
+
+function renderEnvioBulkResults(results){
+  const out = document.getElementById('envio-bulk-output');
+  if(!out) return;
+  const rows = (results || []).map(r=>{
+    if(r.error){
+      return `<tr>
+        <td>${r.idx}</td>
+        <td>${r.label || '-'}</td>
+        <td class="muted">-</td>
+        <td class="right">-</td>
+        <td class="muted">-</td>
+        <td class="right">-</td>
+        <td class="muted">${r.error}</td>
+      </tr>`;
+    }
+    const coordText = `${r.coords.lat.toFixed(6)}, ${r.coords.lon.toFixed(6)}`;
+    return `<tr>
+      <td>${r.idx}</td>
+      <td>${r.label || '-'}</td>
+      <td>${coordText}</td>
+      <td class="right">${r.km.toFixed(2)}</td>
+      <td>${r.quote.label}</td>
+      <td class="right">${r.quote.priceText}</td>
+      <td>${r.quote.special ? 'Especial' : 'OK'}</td>
+    </tr>`;
+  }).join('');
+  out.innerHTML = `
+    <table>
+      <thead><tr><th>#</th><th>Cliente/ID</th><th>Coordenadas</th><th class="right">Km</th><th>Zona</th><th class="right">Precio</th><th>Estatus</th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="7" class="muted">Sin resultados</td></tr>`}</tbody>
+    </table>
+  `;
+}
+
+function limpiarEnvioLista(){
+  const input = document.getElementById('envio-bulk-input');
+  const out = document.getElementById('envio-bulk-output');
+  if(input) input.value = '';
+  if(out) out.innerHTML = '';
+}
+
+function cargarEjemploEnvio(){
+  const input = document.getElementById('envio-bulk-input');
+  if(!input) return;
+  input.value = [
+    'Pedido 101 | 19.050842, -98.279210',
+    'Cliente Rosa | 19.039850, -98.286730',
+    '19.064220, -98.263100'
+  ].join('\n');
 }
 
 /*******************************
