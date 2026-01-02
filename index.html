@@ -256,7 +256,6 @@
     <button data-tab="tab-ventas">Ventas</button>
     <button data-tab="tab-clientes">Clientes</button>
     <button data-tab="tab-productos">Productos</button>
-    <button data-tab="tab-roscas">Roscas</button>
     <button data-tab="tab-cotizador">Cotizador</button>
     <button data-tab="tab-gastos">Gastos</button>
     <button data-tab="tab-reportes">Reportes</button>
@@ -631,33 +630,6 @@
         <thead><tr><th>Producto</th><th>Variante</th><th class="right">Precio</th><th>Activo</th></tr></thead>
         <tbody></tbody>
       </table>
-    </section>
-  </section>
-
-  <!-- ROSCAS -->
-  <section id="tab-roscas" class="tab hidden">
-    <section class="card narrow">
-      <h3>Roscas</h3>
-      <div class="grid g2">
-        <div>
-          <label>Sabores</label>
-          <ul class="list">
-            <li><span>Lotus</span><span class="badge">🍫</span></li>
-            <li><span>Ferrero</span><span class="badge">🍫</span></li>
-            <li><span>Conejito</span><span class="badge">🍫</span></li>
-          </ul>
-        </div>
-        <div>
-          <label>Precios y tamanos</label>
-          <table>
-            <thead><tr><th>Tamano</th><th class="right">Precio</th></tr></thead>
-            <tbody>
-              <tr><td>Chica</td><td class="right">$470</td></tr>
-              <tr><td>Grande</td><td class="right">$660</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
     </section>
   </section>
 
@@ -1222,6 +1194,9 @@ const SEED = [
   {categoria:"Tortugas", producto:"Tortugas (nuez/almendra/oreo/pretzel) 12 pzas", variantes:{"CAJA 12":260}},
   {categoria:"Para Perritos", producto:"Pastel con galletas", variantes:{UNIDAD:350}},
   {categoria:"Para Perritos", producto:"Pastel de hueso", variantes:{UNIDAD:260}},
+  {categoria:"Roscas", producto:"Rosca Lotus", variantes:{CHICA:470, GRANDE:660}},
+  {categoria:"Roscas", producto:"Rosca Ferrero", variantes:{CHICA:470, GRANDE:660}},
+  {categoria:"Roscas", producto:"Rosca Conejito", variantes:{CHICA:470, GRANDE:660}},
 ];
 
 const ENVIO_DEFAULT = {
