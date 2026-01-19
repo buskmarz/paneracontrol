@@ -804,8 +804,8 @@
         <tbody></tbody>
       </table>
       <div class="grid g3 totals compact" style="margin-top:8px;grid-template-columns:repeat(3,1fr)">
-        <div><b>Total piezas</b><div id="ct-tot-pz" class="right"></div></div>
-        <div><b>Total gr/ml</b><div id="ct-tot-gr" class="right"></div></div>
+        <div><b>Insumos (piezas)</b><div id="ct-tot-pz" class="right"></div></div>
+        <div><b>Insumos (gr/ml)</b><div id="ct-tot-gr" class="right"></div></div>
         <div><b>Indirectos</b><div id="ct-ci-total" class="right"></div></div>
       </div>
 
@@ -814,7 +814,7 @@
         <div class="grid g3">
           <div><label>Concepto</label><input id="ct-ci-conc" placeholder="Ej. Gas, luz, m.o."></div>
           <div><label>Monto (MXN)</label><input id="ct-ci-monto" type="number" min="0" step="0.01"></div>
-          <div class="flex" style="align-items:flex-end"><button class="btn alt" onclick="addCostoIndirecto()">Agregar costo</button></div>
+          <div class="flex" style="align-items:flex-end"><button id="ct-ci-add-btn" class="btn alt" onclick="addCostoIndirecto()">Agregar costo</button></div>
         </div>
         <table id="ct-indirectos" style="margin-top:8px">
           <thead><tr><th>Concepto</th><th class="right">Monto</th><th>Acciones</th></tr></thead>
@@ -1478,7 +1478,7 @@ function initUI(){
       document.getElementById(btn.dataset.tab).classList.remove("hidden");
       if(btn.dataset.tab==="tab-dashboard") renderDashboard();
       if(btn.dataset.tab==="tab-calendario"){ renderCalendario(); renderEventos(); }
-      if(btn.dataset.tab==="tab-cotizador"){ renderMateriales(); renderRecetasList(); renderSelectMateriales(); recalcReceta(); initEnvioUI(); }
+      if(btn.dataset.tab==="tab-cotizador"){ renderMateriales(); renderRecetasList(); renderSelectMateriales(); renderIndirectos(); recalcReceta(); initEnvioUI(); }
     };
   });
 
@@ -3196,7 +3196,31 @@ function cargarEjemploEnvio(){
 /*******************************
  * COTIZADOR / COSTEO
  *******************************/
-let CT = { editingMatId:null, editingRecId:null, receta:{ producto:'', rinde:1, precio:0, items:[] } };
+let CT = { editingMatId:null, editingRecId:null, editingIngId:null, editingIndirectId:null, receta:{ producto:'', rinde:1, precio:0, items:[], indirectos:[] } };
+function ensureIndirectos(receta){
+  if(!receta) return;
+  if(!Array.isArray(receta.indirectos)) receta.indirectos = [];
+}
+function resetCostoIndirectoForm(){
+  const conc = document.getElementById('ct-ci-conc'); if(conc) conc.value = '';
+  const monto = document.getElementById('ct-ci-monto'); if(monto) monto.value = '';
+  CT.editingIndirectId = null;
+  const btn = document.getElementById('ct-ci-add-btn'); if(btn) btn.textContent = 'Agregar costo';
+}
+function calcCostoReceta(receta){
+  const mats = new Map((DB.costeo.materiales||[]).map(m=>[m.id,m]));
+  let totalPz=0, totalGr=0;
+  (receta.items||[]).forEach(it=>{
+    const m = mats.get(it.matId)||{};
+    const unit = (m.unidad||'').toLowerCase();
+    const cost = Number(m.costoUnit||0) * Number(it.cant||0);
+    if(unit==='pieza') totalPz += cost; else totalGr += cost;
+  });
+  const indirectos = sum((receta.indirectos||[]), x=> Number(x.monto||0));
+  const insumos = totalPz + totalGr;
+  const costo = insumos + indirectos;
+  return { totalPz, totalGr, insumos, indirectos, costo };
+}
 function renderSelectMateriales(){
   const opts = (DB.costeo.materiales||[]).map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('');
   const sel = document.getElementById('ct-r-mat'); if(sel){ sel.innerHTML = `<option value="">— Selecciona —</option>`+opts; }
@@ -3251,7 +3275,17 @@ function renderMateriales(){
     <td><button class="btn alt" onclick="editarMaterial('${m.id}')">Editar</button> <button class="btn ghost" onclick="eliminarMaterial('${m.id}')">Eliminar</button></td>
   </tr>`).join('') || `<tr><td colspan="6" class="muted">Sin materiales</td></tr>`;
 }
-function nuevaReceta(){ CT.editingRecId=null; CT.receta={ producto:'', rinde:1, precio:0, items:[] }; document.getElementById('ct-r-nombre').value=''; document.getElementById('ct-r-rinde').value=1; document.getElementById('ct-r-precio').value=''; renderRecetaItems(); recalcReceta(); }
+function nuevaReceta(){
+  CT.editingRecId=null;
+  CT.receta={ producto:'', rinde:1, precio:0, items:[], indirectos:[] };
+  document.getElementById('ct-r-nombre').value='';
+  document.getElementById('ct-r-rinde').value=1;
+  document.getElementById('ct-r-precio').value='';
+  renderRecetaItems();
+  renderIndirectos();
+  resetCostoIndirectoForm();
+  recalcReceta();
+}
 function addIngredienteReceta(){
   const matId = document.getElementById('ct-r-mat').value; const cant = Number(document.getElementById('ct-r-cant').value||0);
   if(!matId || cant<=0){ toast('Selecciona material y cantidad válida','err'); return; }
@@ -3285,20 +3319,71 @@ function renderRecetaItems(){
 }
 function editarIngrediente(id){ const it=(CT.receta.items||[]).find(x=>x.id===id); if(!it) return; CT.editingIngId=id; document.getElementById('ct-r-mat').value=it.matId; document.getElementById('ct-r-cant').value=it.cant; document.getElementById('ct-r-add-btn').textContent='Actualizar ingrediente'; }
 function duplicarIngrediente(id){ const it=(CT.receta.items||[]).find(x=>x.id===id); if(!it) return; const copy={...it,id:id_uniq()}; CT.receta.items.push(copy); renderRecetaItems(); recalcReceta(); }
+function addCostoIndirecto(){
+  const concEl = document.getElementById('ct-ci-conc');
+  const montoEl = document.getElementById('ct-ci-monto');
+  const concepto = (concEl?.value||'').trim();
+  const monto = Number(montoEl?.value||0);
+  if(!concepto || !Number.isFinite(monto) || monto<=0){
+    toast('Captura concepto y monto valido', 'err');
+    return;
+  }
+  ensureIndirectos(CT.receta);
+  if(CT.editingIndirectId){
+    const idx = CT.receta.indirectos.findIndex(x=>x.id===CT.editingIndirectId);
+    if(idx>-1){
+      CT.receta.indirectos[idx] = { ...CT.receta.indirectos[idx], concepto, monto };
+    }
+    CT.editingIndirectId = null;
+  }else{
+    CT.receta.indirectos.push({ id:id_uniq(), concepto, monto });
+  }
+  if(concEl) concEl.value = '';
+  if(montoEl) montoEl.value = '';
+  const btn = document.getElementById('ct-ci-add-btn'); if(btn) btn.textContent = 'Agregar costo';
+  renderIndirectos();
+  recalcReceta();
+}
+function renderIndirectos(){
+  const tb = document.querySelector('#ct-indirectos tbody'); if(!tb) return;
+  ensureIndirectos(CT.receta);
+  tb.innerHTML = (CT.receta.indirectos||[]).map(ci=>`<tr>
+    <td>${ci.concepto||''}</td>
+    <td class="right">${ci.monto? fmt(ci.monto):''}</td>
+    <td>
+      <button class="btn alt" onclick="editarCostoIndirecto('${ci.id}')">Editar</button>
+      <button class="btn ghost" onclick="eliminarCostoIndirecto('${ci.id}')">Eliminar</button>
+    </td>
+  </tr>`).join('') || `<tr><td colspan="3" class="muted">Sin costos indirectos</td></tr>`;
+}
+function editarCostoIndirecto(id){
+  ensureIndirectos(CT.receta);
+  const it = (CT.receta.indirectos||[]).find(x=>x.id===id); if(!it) return;
+  CT.editingIndirectId = id;
+  const concEl = document.getElementById('ct-ci-conc'); if(concEl) concEl.value = it.concepto || '';
+  const montoEl = document.getElementById('ct-ci-monto'); if(montoEl) montoEl.value = it.monto || '';
+  const btn = document.getElementById('ct-ci-add-btn'); if(btn) btn.textContent = 'Actualizar costo';
+}
+function eliminarCostoIndirecto(id){
+  if(!confirm('¿Eliminar costo indirecto?')) return;
+  ensureIndirectos(CT.receta);
+  CT.receta.indirectos = (CT.receta.indirectos||[]).filter(x=>x.id!==id);
+  if(CT.editingIndirectId === id) resetCostoIndirectoForm();
+  renderIndirectos();
+  recalcReceta();
+}
 function recalcReceta(){
   const nombre = (document.getElementById('ct-r-nombre')?.value||'').trim();
   const rinde = Number(document.getElementById('ct-r-rinde')?.value||1);
   const precio = Number(document.getElementById('ct-r-precio')?.value||0);
   const uv = (document.getElementById('ct-r-uv')?.value||'').trim();
   CT.receta.producto = nombre; CT.receta.rinde=rinde; CT.receta.precio=precio; CT.receta.uv = uv;
-  const mats = new Map((DB.costeo.materiales||[]).map(m=>[m.id,m]));
-  let totalPz=0, totalGr=0;
-  (CT.receta.items||[]).forEach(it=>{
-    const m=mats.get(it.matId); const unit=(m?.unidad||'').toLowerCase(); const cost = (m?.costoUnit||0)*(it.cant||0);
-    if(unit==='pieza') totalPz += cost; else totalGr += cost;
-  });
-  const indirectos = sum(CT.receta.indirectos||[], x=> Number(x.monto||0));
-  const costo = totalPz + totalGr + indirectos;
+  ensureIndirectos(CT.receta);
+  const detail = calcCostoReceta(CT.receta);
+  const totalPz = detail.totalPz;
+  const totalGr = detail.totalGr;
+  const indirectos = detail.indirectos;
+  const costo = detail.costo;
   const costoUnit = (rinde>0) ? (costo/rinde) : 0;
   const margenNeto = (precio>0 && costoUnit>0) ? (precio - costoUnit) : 0;
   const costoMarg = (precio>0 && costoUnit>0) ? (costoUnit/precio)*100 : 0;
@@ -3329,8 +3414,9 @@ function recalcReceta(){
 ['ct-r-nombre','ct-r-rinde','ct-r-precio'].forEach(id=> document.getElementById(id)?.addEventListener('input', recalcReceta));
 function guardarReceta(){
   const r = CT.receta; if(!r.producto || (r.items||[]).length===0){ alert('Captura producto e ingredientes'); return; }
-  const mats = new Map((DB.costeo.materiales||[]).map(m=>[m.id,m]));
-  const costo = sum(r.items||[], it=> (mats.get(it.matId)?.costoUnit||0) * (it.cant||0));
+  ensureIndirectos(r);
+  const detail = calcCostoReceta(r);
+  const costo = detail.costo;
   if(CT.editingRecId){
     const idx = DB.costeo.recetas.findIndex(x=>x.id===CT.editingRecId);
     if(idx>-1) DB.costeo.recetas[idx] = { ...DB.costeo.recetas[idx], producto:r.producto, rinde:r.rinde, uv:r.uv||'', precio:r.precio, costo, indirectos: JSON.parse(JSON.stringify(r.indirectos||[])), items: JSON.parse(JSON.stringify(r.items||[])), alergias: (document.getElementById('ct-r-alergias')?.value||''), prep:(document.getElementById('ct-r-prep')?.value||''), prepPuesto:(document.getElementById('ct-r-prep-puesto')?.value||''), apr:(document.getElementById('ct-r-apr')?.value||''), aprPuesto:(document.getElementById('ct-r-apr-puesto')?.value||'') };
@@ -3343,14 +3429,16 @@ function guardarReceta(){
 function renderRecetasList(){
   const tb = document.querySelector('#tabla-recetas tbody'); if(!tb) return;
   tb.innerHTML = (DB.costeo.recetas||[]).map(rc=>{
-    const margen = rc.precio>0? Math.round((1 - (rc.costo/(rc.precio||1))) * 100) : 0;
+    const detail = calcCostoReceta(rc);
+    const costo = detail.costo;
+    const margen = rc.precio>0? Math.round((1 - (costo/(rc.precio||1))) * 100) : 0;
     return `<tr>
       <td>${rc.producto}</td>
-      <td class="right">${fmt(rc.costo)}</td>
+      <td class="right">${fmt(costo)}</td>
       <td class="right">${fmt(rc.precio||0)}</td>
       <td class="right">${margen}%</td>
       <td>
-        <button class="btn alt" onclick="cargarReceta('${rc.id}')">Cargar</button>
+        <button class="btn alt" onclick="cargarReceta('${rc.id}')">Editar</button>
         <button class="btn primary" onclick="duplicarReceta('${rc.id}')">Duplicar</button>
         <button class="btn ghost" onclick="eliminarReceta('${rc.id}')">Eliminar</button>
         <button class="btn ghost" onclick="exportarJSONReceta('${rc.id}')">Exportar</button>
@@ -3372,10 +3460,163 @@ function cargarReceta(id){
   document.getElementById('ct-r-apr').value=rc.apr||'';
   document.getElementById('ct-r-apr-puesto').value=rc.aprPuesto||'';
   CT.receta={ producto:rc.producto, rinde:rc.rinde||1, precio:rc.precio||0, uv:rc.uv||'', items: JSON.parse(JSON.stringify(rc.items||[])), indirectos: JSON.parse(JSON.stringify(rc.indirectos||[])) };
-  renderRecetaItems(); renderIndirectos(); recalcReceta(); toast('Receta cargada');
+  ensureIndirectos(CT.receta);
+  resetCostoIndirectoForm();
+  renderRecetaItems();
+  renderIndirectos();
+  recalcReceta();
+  toast('Receta cargada');
 }
 function duplicarReceta(id){ const rc = DB.costeo.recetas.find(x=>x.id===id); if(!rc) return; const copy = { ...rc, id:id_uniq(), producto: rc.producto + ' (copia)' }; DB.costeo.recetas.unshift(copy); saveDB(); renderRecetasList(); toast('Receta duplicada'); }
 function eliminarReceta(id){ if(!confirm('¿Eliminar receta?')) return; DB.costeo.recetas = DB.costeo.recetas.filter(x=>x.id!==id); saveDB(); renderRecetasList(); toast('Receta eliminada'); }
+function exportarJSONReceta(id){
+  const rc = DB.costeo.recetas.find(x=>x.id===id); if(!rc) return;
+  const slug = (rc.producto||'receta').toString().trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+  const filename = `receta_${slug||'sin_nombre'}_${hoyISO()}.json`;
+  const blob = new Blob([JSON.stringify(rc,null,2)], {type:"application/json"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+}
+function importarJSONReceta(){
+  const inp = document.createElement("input"); inp.type = "file"; inp.accept = "application/json";
+  inp.onchange = () => {
+    const f = inp.files[0]; if(!f) return;
+    const reader = new FileReader();
+    reader.onload = () => { try{
+      const data = JSON.parse(reader.result);
+      const list = Array.isArray(data) ? data : (Array.isArray(data.recetas) ? data.recetas : [data]);
+      let added = 0;
+      list.forEach(raw=>{
+        if(!raw || !raw.producto) return;
+        const rec = { ...raw };
+        rec.id = id_uniq();
+        rec.items = Array.isArray(rec.items) ? rec.items : [];
+        rec.indirectos = Array.isArray(rec.indirectos) ? rec.indirectos : [];
+        rec.rinde = Number(rec.rinde||1);
+        rec.precio = Number(rec.precio||0);
+        DB.costeo.recetas.push(rec);
+        added++;
+      });
+      if(added){
+        saveDB(); renderRecetasList(); toast(`Receta${added>1?'s':''} importada${added>1?'s':''}`);
+      }else{
+        alert("JSON sin recetas validas");
+      }
+    }catch(e){ alert("JSON inválido"); } };
+    reader.readAsText(f);
+  };
+  inp.click();
+}
+function exportarPDFReceta(id){
+  const rc = DB.costeo.recetas.find(x=>x.id===id); if(!rc) return;
+  const detail = calcCostoReceta(rc);
+  const rinde = Number(rc.rinde||1);
+  const precio = Number(rc.precio||0);
+  const costoUnit = (rinde>0) ? (detail.costo/rinde) : 0;
+  const margenNeto = (precio>0 && costoUnit>0) ? (precio - costoUnit) : 0;
+  const margenPct = (precio>0 && costoUnit>0) ? ((1 - (costoUnit/precio)) * 100) : 0;
+  const mats = new Map((DB.costeo.materiales||[]).map(m=>[m.id,m]));
+  const itemsRows = (rc.items||[]).map(it=>{
+    const m = mats.get(it.matId)||{};
+    const costUnit = Number(m.costoUnit||0);
+    const cost = costUnit * Number(it.cant||0);
+    return `<tr>
+      <td>${m.nombre||'—'}</td>
+      <td>${it.cant}</td>
+      <td>${m.unidad||''}</td>
+      <td class="right">${costUnit? fmt(costUnit):''}</td>
+      <td class="right">${cost? fmt(cost):''}</td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="5" class="muted">Sin insumos</td></tr>`;
+  const indirectosRows = (rc.indirectos||[]).map(ci=>`<tr>
+    <td>${ci.concepto||''}</td>
+    <td class="right">${ci.monto? fmt(ci.monto):''}</td>
+  </tr>`).join('') || `<tr><td colspan="2" class="muted">Sin costos indirectos</td></tr>`;
+  const brand = (DB.config && DB.config.nombreNegocio) ? DB.config.nombreNegocio : 'Panera Signature';
+  const uv = rc.uv || 'unidad';
+  const fecha = new Date().toLocaleString('es-MX');
+  const html = `<!doctype html>
+  <html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <title>Receta ${rc.producto||''}</title>
+    <style>
+      body{font-family:Arial,Helvetica,sans-serif;margin:28px;color:#111}
+      h1,h2,h3{margin:0 0 8px}
+      .muted{color:#666}
+      .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+      .meta{font-size:12px}
+      table{width:100%;border-collapse:collapse;margin:8px 0 16px}
+      th,td{border:1px solid #ddd;padding:6px 8px;font-size:12px}
+      th{background:#f3f4f6;text-align:left}
+      .right{text-align:right}
+      .summary td{border:none}
+      .summary tr td:first-child{width:60%}
+      .section{margin-top:12px}
+      @media print{ body{margin:12mm} }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div>
+        <h1>${brand}</h1>
+        <div class="muted">Receta / Costeo</div>
+      </div>
+      <div class="meta">
+        <div><b>Fecha:</b> ${fecha}</div>
+        <div><b>Producto:</b> ${rc.producto||''}</div>
+        <div><b>Rinde:</b> ${rinde} ${uv}</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Resumen de costos</h2>
+      <table class="summary">
+        <tr><td>Insumos (piezas)</td><td class="right">${fmt(detail.totalPz)}</td></tr>
+        <tr><td>Insumos (gr/ml)</td><td class="right">${fmt(detail.totalGr)}</td></tr>
+        <tr><td><b>Insumos total</b></td><td class="right"><b>${fmt(detail.insumos)}</b></td></tr>
+        <tr><td>Indirectos</td><td class="right">${fmt(detail.indirectos)}</td></tr>
+        <tr><td><b>Costo total receta</b></td><td class="right"><b>${fmt(detail.costo)}</b></td></tr>
+        <tr><td>Costo por ${uv}</td><td class="right">${fmt(costoUnit)}</td></tr>
+        <tr><td>Precio venta</td><td class="right">${fmt(precio)}</td></tr>
+        <tr><td>Margen neto unitario</td><td class="right">${fmt(margenNeto)}</td></tr>
+        <tr><td>Margen (%)</td><td class="right">${margenPct>0 ? margenPct.toFixed(2)+'%' : ''}</td></tr>
+      </table>
+    </div>
+
+    <div class="section">
+      <h3>Insumos</h3>
+      <table>
+        <thead><tr><th>Material</th><th>Cantidad</th><th>Unidad</th><th class="right">Costo unit</th><th class="right">Costo</th></tr></thead>
+        <tbody>${itemsRows}</tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h3>Indirectos</h3>
+      <table>
+        <thead><tr><th>Concepto</th><th class="right">Monto</th></tr></thead>
+        <tbody>${indirectosRows}</tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h3>Notas</h3>
+      <table class="summary">
+        <tr><td>Alergias</td><td>${rc.alergias||''}</td></tr>
+        <tr><td>Preparado por</td><td>${rc.prep||''} ${rc.prepPuesto? ' / '+rc.prepPuesto:''}</td></tr>
+        <tr><td>Aprobado por</td><td>${rc.apr||''} ${rc.aprPuesto? ' / '+rc.aprPuesto:''}</td></tr>
+      </table>
+    </div>
+  </body>
+  </html>`;
+  const w = window.open("", "_blank");
+  if(!w){ alert("Permite ventanas emergentes para exportar PDF"); return; }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  w.print();
+}
 
 </script>
 </body>
