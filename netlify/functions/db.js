@@ -21,7 +21,7 @@ function getStoreConfig(){
     process.env.NETLIFY_AUTH_TOKEN ||
     process.env.NETLIFY_PERSONAL_ACCESS_TOKEN ||
     process.env.PERSONAL_ACCESS_TOKEN ||
-    process.env.PANERA_BLOBS_TOKEN ||
+    process.env.PANERA_BLOBS_TOKEN_2026 ||
     ""
   ).trim();
   if(siteID && token) return { siteID, token };
@@ -76,10 +76,10 @@ exports.handler = async (event) => {
   try{
     store = openStore();
   }catch(e){
-    return jsonResponse(503, { ok:false, error:"blobs_not_configured", hint:"Enable Netlify Blobs or set PANERA_BLOBS_SITE_ID/PANERA_BLOBS_TOKEN." });
+    return jsonResponse(503, { ok:false, error:"blobs_not_configured", hint:"Enable Netlify Blobs or set PANERA_BLOBS_SITE_ID/PANERA_BLOBS_TOKEN_2026." });
   }
   if(!store){
-    return jsonResponse(503, { ok:false, error:"blobs_not_configured", hint:"Enable Netlify Blobs or set PANERA_BLOBS_SITE_ID/PANERA_BLOBS_TOKEN." });
+    return jsonResponse(503, { ok:false, error:"blobs_not_configured", hint:"Enable Netlify Blobs or set PANERA_BLOBS_SITE_ID/PANERA_BLOBS_TOKEN_2026." });
   }
 
   if(event.httpMethod === "GET"){
