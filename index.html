@@ -203,6 +203,128 @@
   html[data-theme="dark"] .envio-metrics div{background:#0b1320;border-color:#4ba9c4}
   html[data-theme="dark"] .envio-metrics b{color:#8bd0e1}
   html[data-theme="dark"] .envio-metrics .right{color:#f8fafc}
+
+  /* B2B integrado */
+  .b2b-main{
+    display:grid;
+    gap:14px;
+  }
+  .b2b-hero{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(260px,380px);
+    gap:16px;
+    align-items:stretch;
+  }
+  .b2b-hero-copy{
+    min-height:260px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    gap:12px;
+    padding:4px;
+  }
+  .b2b-hero-copy h2{
+    margin:0;
+    font-size:clamp(28px,4vw,48px);
+    line-height:1.04;
+    letter-spacing:0;
+  }
+  .b2b-hero-copy p{margin:0;color:#53616a;line-height:1.55}
+  .b2b-actions{display:flex;flex-wrap:wrap;gap:10px}
+  .b2b-feature{
+    position:relative;
+    overflow:hidden;
+    border-radius:12px;
+    border:1px solid var(--p-light);
+    background:linear-gradient(150deg,#f7eee2,#dceff4);
+    min-height:260px;
+  }
+  .b2b-feature img{width:100%;height:100%;min-height:260px;object-fit:cover}
+  .b2b-note{
+    position:absolute;
+    left:12px;
+    right:12px;
+    bottom:12px;
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    padding:10px 12px;
+    border-radius:10px;
+    background:rgba(255,255,255,.88);
+    border:1px solid rgba(255,255,255,.74);
+    backdrop-filter:blur(12px);
+    font-size:13px;
+  }
+  .b2b-catalog{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:12px;
+  }
+  .b2b-product{
+    overflow:hidden;
+    border:1px solid var(--p-light);
+    border-radius:12px;
+    background:#fff;
+    box-shadow:0 8px 24px rgba(43,78,89,.06);
+  }
+  .b2b-product img{
+    width:100%;
+    aspect-ratio:16/10;
+    object-fit:cover;
+    background:#f5eee6;
+  }
+  .b2b-product-body{padding:12px}
+  .b2b-product-body h3{margin:0 0 10px;font-size:16px;line-height:1.25}
+  .b2b-prices{display:grid;gap:6px;margin-bottom:10px}
+  .b2b-price-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding:7px 8px;
+    border-radius:9px;
+    background:#f7f4ef;
+    color:#485157;
+    font-size:12px;
+  }
+  .b2b-price-row strong{color:var(--ink)}
+  .b2b-order-layout{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 340px;
+    gap:14px;
+    align-items:start;
+  }
+  .b2b-selected{display:grid;gap:8px}
+  .b2b-selected-item{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    align-items:center;
+    border:1px solid var(--p-light);
+    border-radius:10px;
+    padding:9px 10px;
+    background:#fff;
+    font-size:13px;
+  }
+  .b2b-status{min-height:20px;margin:8px 0 0;color:#6b7280;font-size:13px}
+  .b2b-status.error{color:var(--err)}
+  html[data-theme="dark"] .b2b-hero-copy p{color:#b9c3cc}
+  html[data-theme="dark"] .b2b-feature{background:linear-gradient(150deg,#172233,#0f2831);border-color:#1f2937}
+  html[data-theme="dark"] .b2b-note{background:rgba(15,23,42,.86);border-color:#1f2937}
+  html[data-theme="dark"] .b2b-product,
+  html[data-theme="dark"] .b2b-selected-item{background:#0f172a;border-color:#1f2937}
+  html[data-theme="dark"] .b2b-price-row{background:#111d2a;color:#d4dce3}
+  html[data-theme="dark"] .b2b-price-row strong{color:#f8fafc}
+
+  @media (max-width: 900px){
+    .b2b-hero,.b2b-catalog,.b2b-order-layout{grid-template-columns:1fr}
+    .b2b-order-layout .card:last-child{order:-1}
+  }
+  @media (max-width: 560px){
+    .b2b-actions .btn{width:100%}
+    .b2b-note{position:static;margin:10px;background:#fff}
+    .b2b-feature{display:flex;flex-direction:column}
+  }
 </style>
 </head>
 <body>
@@ -255,6 +377,7 @@
     <button class="active" data-tab="tab-dashboard">Dashboard</button>
     <button data-tab="tab-ventas">Ventas</button>
     <button data-tab="tab-clientes">Clientes</button>
+    <button data-tab="tab-b2b">B2B</button>
     <button data-tab="tab-productos">Productos</button>
     <button data-tab="tab-cotizador">Cotizador</button>
     <button data-tab="tab-gastos">Gastos</button>
@@ -600,6 +723,76 @@
         <tbody></tbody>
       </table>
     </section>
+  </section>
+
+  <!-- B2B -->
+  <section id="tab-b2b" class="tab hidden">
+    <div class="b2b-main">
+      <section class="card b2b-hero">
+        <div class="b2b-hero-copy">
+          <span class="tag">Panera Signature para negocios</span>
+          <h2>B2B dentro de Control de Pasteles</h2>
+          <p>Catálogo para cafeterías y negocios con precios por volumen, selección de productos y pedido por WhatsApp sin salir de esta pantalla.</p>
+          <div class="b2b-actions">
+            <button class="btn primary" type="button" onclick="document.getElementById('b2b-catalogo').scrollIntoView({behavior:'smooth',block:'start'})">Ver catálogo</button>
+            <button class="btn alt" type="button" onclick="document.getElementById('b2b-pedido').scrollIntoView({behavior:'smooth',block:'start'})">Armar pedido</button>
+          </div>
+        </div>
+        <div class="b2b-feature" aria-label="Selección B2B Panera Signature">
+          <img src="/b2b/assets/hero-desserts.svg" alt="Postres artesanales Panera Signature">
+          <div class="b2b-note">
+            <span>Precios por volumen</span>
+            <strong>1-5 · 6-15 · 16+</strong>
+          </div>
+        </div>
+      </section>
+
+      <section id="b2b-catalogo" class="card">
+        <div class="flex" style="justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <div>
+            <h3 style="margin:0">Catálogo B2B</h3>
+            <small class="muted">Productos listos para vitrina y pedidos por volumen.</small>
+          </div>
+          <span class="pill">Selección: <b id="b2b-selected-count">0</b></span>
+        </div>
+        <div class="b2b-catalog" data-b2b-catalog-grid aria-label="Productos B2B"></div>
+      </section>
+
+      <section id="b2b-pedido" class="b2b-order-layout">
+        <section class="card">
+          <h3 style="margin-top:0">Pedido B2B por WhatsApp</h3>
+          <form data-b2b-order-form>
+            <div class="grid g2">
+              <div>
+                <label for="b2b-nombre">Nombre</label>
+                <input id="b2b-nombre" name="nombre" autocomplete="name" required>
+              </div>
+              <div>
+                <label for="b2b-negocio">Negocio</label>
+                <input id="b2b-negocio" name="negocio" autocomplete="organization" required>
+              </div>
+              <div>
+                <label for="b2b-telefono">Teléfono</label>
+                <input id="b2b-telefono" name="telefono" autocomplete="tel" inputmode="tel">
+              </div>
+              <div>
+                <label for="b2b-products-field">Productos seleccionados</label>
+                <textarea id="b2b-products-field" name="productos" rows="4" data-b2b-products-field required></textarea>
+              </div>
+            </div>
+            <p class="b2b-status" data-b2b-order-status></p>
+            <div class="toolbar" style="margin-top:8px">
+              <button class="btn primary" type="submit">Enviar pedido por WhatsApp</button>
+              <button class="btn ghost" type="button" onclick="clearB2BOrder()">Limpiar selección</button>
+            </div>
+          </form>
+        </section>
+        <section class="card">
+          <h3 style="margin-top:0">Selección</h3>
+          <div class="b2b-selected" data-b2b-selected-list></div>
+        </section>
+      </section>
+    </div>
   </section>
 
   <!-- PRODUCTOS -->
@@ -1018,6 +1211,7 @@
   <footer><span id="footer-brand">Panera Signature</span>.</footer>
 </div>
 
+<script src="/b2b/data.js"></script>
 <script>
 /* ==============================
    Panera Signature · Control de Pasteles
@@ -1438,6 +1632,127 @@ function toast(msg, kind="ok", timeout=2400){
   }catch(e){ console.log(msg); }
 }
 
+/*******************************
+ * B2B INTEGRADO
+ *******************************/
+const B2B_STORAGE_KEY = "panera.b2b.order";
+function getB2BProducts(){ return Array.isArray(window.PANERA_B2B_PRODUCTS) ? window.PANERA_B2B_PRODUCTS : []; }
+function getB2BOrder(){
+  try{
+    const raw = localStorage.getItem(B2B_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  }catch(e){
+    return [];
+  }
+}
+function saveB2BOrder(items){ localStorage.setItem(B2B_STORAGE_KEY, JSON.stringify(items)); }
+function findB2BProduct(id){ return getB2BProducts().find(product => product.id === id); }
+function b2bProductLine(product){
+  return `${product.name} (${Object.entries(product.prices || {}).map(([range, price]) => `${range}: ${price}`).join(", ")})`;
+}
+function renderB2B(){
+  const products = getB2BProducts();
+  const grid = document.querySelector("[data-b2b-catalog-grid]");
+  if(grid){
+    grid.innerHTML = products.map(product => `
+      <article class="b2b-product">
+        <img src="${product.image}" alt="${product.name}" loading="lazy">
+        <div class="b2b-product-body">
+          <h3>${product.name}</h3>
+          <div class="b2b-prices">
+            ${Object.entries(product.prices || {}).map(([range, price]) => `
+              <div class="b2b-price-row"><span>${range}</span><strong>${price}</strong></div>
+            `).join("")}
+          </div>
+          <button class="btn primary" type="button" onclick="addB2BProduct('${product.id}')">Agregar pedido</button>
+        </div>
+      </article>
+    `).join("") || `<p class="muted">No hay productos B2B configurados.</p>`;
+  }
+  renderB2BSelected();
+}
+function selectedB2BProducts(){ return getB2BOrder().map(findB2BProduct).filter(Boolean); }
+function selectedB2BText(){
+  const selected = selectedB2BProducts();
+  return selected.length ? selected.map(b2bProductLine).join("\n") : "";
+}
+function addB2BProduct(productId){
+  if(!findB2BProduct(productId)) return;
+  const items = getB2BOrder();
+  if(!items.includes(productId)) items.push(productId);
+  saveB2BOrder(items);
+  renderB2BSelected();
+  toast("Producto agregado a B2B");
+}
+function removeB2BProduct(productId){
+  saveB2BOrder(getB2BOrder().filter(item => item !== productId));
+  renderB2BSelected();
+}
+function clearB2BOrder(){
+  saveB2BOrder([]);
+  const textarea = document.querySelector("[data-b2b-products-field]");
+  if(textarea){
+    textarea.dataset.userEdited = "";
+    textarea.value = "";
+  }
+  renderB2BSelected();
+}
+function renderB2BSelected(){
+  const selected = selectedB2BProducts();
+  const list = document.querySelector("[data-b2b-selected-list]");
+  const textarea = document.querySelector("[data-b2b-products-field]");
+  const counter = document.getElementById("b2b-selected-count");
+  if(counter) counter.textContent = String(selected.length);
+  if(textarea && !textarea.dataset.userEdited) textarea.value = selectedB2BText();
+  if(!list) return;
+  if(!selected.length){
+    list.innerHTML = `<p class="muted">Aún no hay productos seleccionados. Agrega productos desde el catálogo B2B.</p>`;
+    return;
+  }
+  list.innerHTML = selected.map(product => `
+    <div class="b2b-selected-item">
+      <span>${product.name}</span>
+      <button class="btn ghost sm" type="button" onclick="removeB2BProduct('${product.id}')">Quitar</button>
+    </div>
+  `).join("");
+}
+async function submitB2BOrder(event){
+  event.preventDefault();
+  const form = event.currentTarget;
+  const status = document.querySelector("[data-b2b-order-status]");
+  const payload = {
+    nombre: form.nombre.value.trim(),
+    negocio: form.negocio.value.trim(),
+    telefono: form.telefono.value.trim(),
+    productos: form.productos.value.trim()
+  };
+  if(!payload.nombre || !payload.negocio || !payload.productos){
+    if(status){
+      status.textContent = "Completa nombre, negocio y productos para enviar el pedido.";
+      status.className = "b2b-status error";
+    }
+    return;
+  }
+  if(status){
+    status.textContent = "Preparando mensaje de WhatsApp...";
+    status.className = "b2b-status";
+  }
+  try{
+    const response = await fetch("/.netlify/functions/b2b-whatsapp", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(payload)
+    });
+    const data = await response.json();
+    if(!response.ok || !data.url) throw new Error(data.error || "No se pudo generar el mensaje.");
+    window.location.href = data.url;
+  }catch(error){
+    const message = `Hola, soy ${payload.nombre} de ${payload.negocio}. Quiero pedir: ${payload.productos}`;
+    window.location.href = `https://wa.me/?text=${encodeURIComponent(message)}`;
+  }
+}
+
 function getSelectEstatus(){
   return document.getElementById("v-estatus-pago-top") || document.getElementById("v-estatus-pago");
 }
@@ -1477,6 +1792,7 @@ function initUI(){
       document.querySelectorAll("section.tab").forEach(s=>s.classList.add("hidden"));
       document.getElementById(btn.dataset.tab).classList.remove("hidden");
       if(btn.dataset.tab==="tab-dashboard") renderDashboard();
+      if(btn.dataset.tab==="tab-b2b") renderB2B();
       if(btn.dataset.tab==="tab-calendario"){ renderCalendario(); renderEventos(); }
       if(btn.dataset.tab==="tab-cotizador"){ renderMateriales(); renderRecetasList(); renderSelectMateriales(); renderIndirectos(); recalcReceta(); initEnvioUI(); }
     };
@@ -1515,6 +1831,7 @@ function initUI(){
   renderTablaProductos();
   renderGastos();
   renderDashboard();
+  renderB2B();
   renderMateriales(); renderRecetasList(); renderSelectMateriales();
   renderCalendario();
   renderEventos();
@@ -1554,12 +1871,18 @@ function initUI(){
     const tag = document.getElementById("estatus-entrega");
     if(tag) tag.textContent = v;
   });
+  const b2bForm = document.querySelector("[data-b2b-order-form]");
+  if(b2bForm) b2bForm.onsubmit = submitB2BOrder;
+  document.querySelector("[data-b2b-products-field]")?.addEventListener("input", (e)=>{
+    e.target.dataset.userEdited = "true";
+  });
 
   // Enter para agregar ítem
   document.getElementById("p-cant")?.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); addItem(); }});
 
   // Restaurar pestaña activa
-  const savedTab = localStorage.getItem("panera.activeTab");
+  const requestedTab = new URLSearchParams(window.location.search).get("tab") || (window.location.hash ? window.location.hash.slice(1) : "");
+  const savedTab = requestedTab || localStorage.getItem("panera.activeTab");
   if(savedTab){
     const btn = document.querySelector(`nav button[data-tab="${savedTab}"]`);
     if(btn){ btn.click(); }
