@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 900" role="img" aria-labelledby="title">
+  <title id="title">Selección de postres artesanales</title>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#fff8ee"/><stop offset="1" stop-color="#d8edf2"/></linearGradient>
+    <linearGradient id="cake" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#f7d7c8"/><stop offset="1" stop-color="#c87468"/></linearGradient>
+  </defs>
+  <rect width="900" height="900" fill="url(#bg)"/>
+  <circle cx="760" cy="135" r="170" fill="#66b6cc" opacity=".18"/>
+  <circle cx="150" cy="770" r="220" fill="#2b4e59" opacity=".12"/>
+  <ellipse cx="450" cy="672" rx="330" ry="76" fill="#2b4e59" opacity=".14"/>
+  <rect x="218" y="438" width="456" height="190" rx="26" fill="#e8c7aa"/>
+  <rect x="248" y="348" width="396" height="130" rx="28" fill="url(#cake)"/>
+  <path d="M252 386c50 33 82-28 134 4 42 26 74 18 111-5 42-26 89 26 144-8v88H252z" fill="#fff5ea"/>
+  <rect x="300" y="270" width="292" height="92" rx="46" fill="#3d2f2b"/>
+  <path d="M346 284h196c-10 38-42 62-98 62s-88-24-98-62z" fill="#5c423a"/>
+  <circle cx="332" cy="414" r="18" fill="#f7ebe4"/>
+  <circle cx="480" cy="412" r="16" fill="#f7ebe4"/>
+  <circle cx="580" cy="414" r="18" fill="#f7ebe4"/>
+  <rect x="154" y="560" width="168" height="104" rx="24" fill="#8b5f4d"/>
+  <path d="M174 585h128v50H174z" fill="#57372f" opacity=".5"/>
+  <rect x="600" y="540" width="150" height="124" rx="22" fill="#bedb9f"/>
+  <path d="M622 558h106v88H622z" fill="#8aa36f" opacity=".45"/>
+</svg>
