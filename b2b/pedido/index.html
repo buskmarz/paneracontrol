@@ -4,67 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pedido B2B · Panera Signature</title>
-  <meta name="theme-color" content="#fbfaf8">
-  <link rel="icon" href="/assets/logo-panera.png">
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/b2b/styles.css">
+  <meta http-equiv="refresh" content="0; url=/?tab=tab-b2b">
+  <link rel="canonical" href="/?tab=tab-b2b">
+  <script>
+    window.location.replace("/?tab=tab-b2b");
+  </script>
 </head>
 <body>
-  <div class="b2b-shell">
-    <header class="b2b-nav">
-      <div class="b2b-nav-inner">
-        <a class="brand-mark" href="/b2b/" aria-label="Panera Signature B2B">
-          <img src="/assets/logo-panera.png" alt="Panera Signature">
-          <span>B2B</span>
-        </a>
-        <nav class="nav-links" aria-label="B2B">
-          <a href="/b2b/">Inicio</a>
-          <a href="/b2b/catalogo/">Catálogo</a>
-          <a href="/b2b/pedido/" aria-current="page">Pedido</a>
-        </nav>
-      </div>
-    </header>
-    <main class="wrap">
-      <div class="page-head">
-        <div>
-          <p class="eyebrow">Pedido rápido</p>
-          <h1>Enviar pedido por WhatsApp</h1>
-          <p>El mensaje se arma con los datos del negocio y los productos seleccionados.</p>
-        </div>
-      </div>
-      <section class="order-layout">
-        <form class="form-card" data-order-form>
-          <div class="form-grid">
-            <div>
-              <label for="nombre">Nombre</label>
-              <input id="nombre" name="nombre" autocomplete="name" required>
-            </div>
-            <div>
-              <label for="negocio">Negocio</label>
-              <input id="negocio" name="negocio" autocomplete="organization" required>
-            </div>
-            <div class="wide">
-              <label for="telefono">Teléfono</label>
-              <input id="telefono" name="telefono" autocomplete="tel" inputmode="tel">
-            </div>
-            <div class="wide">
-              <label for="productos">Productos seleccionados</label>
-              <textarea id="productos" name="productos" data-products-field required></textarea>
-            </div>
-          </div>
-          <p class="status" data-order-status></p>
-          <button class="button primary full" type="submit">Enviar pedido por WhatsApp</button>
-        </form>
-        <aside class="summary-card">
-          <h2>Selección</h2>
-          <div class="selected-list" data-selected-list></div>
-          <a class="mini-link" href="/b2b/catalogo/">Agregar más productos</a>
-        </aside>
-      </section>
-    </main>
-    <footer class="footer">Panera Signature · Pedidos B2B</footer>
-  </div>
-  <script src="/b2b/data.js"></script>
-  <script src="/b2b/b2b.js"></script>
+  <p>Los pedidos B2B ahora están dentro de Control de Pasteles. <a href="/?tab=tab-b2b">Abrir B2B</a>.</p>
 </body>
 </html>
