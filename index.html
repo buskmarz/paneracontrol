@@ -945,7 +945,7 @@
       <div class="grid g4">
         <div><label>Nombre</label><input id="ct-mt-nombre" placeholder="Ej. Conejitos 20 pzas (bote)"></div>
         <div><label>Unidad (presentación)</label>
-          <select id="ct-mt-unidad">
+          <select id="ct-mt-unidad" onchange="syncMaterialContenidoUnidad()">
             <option value="pieza">Pieza</option>
             <option value="gramo">Gramo</option>
             <option value="kilogramo">Kilogramo</option>
@@ -953,7 +953,13 @@
             <option value="litro">Litro</option>
           </select>
         </div>
-        <div><label>Contenido por presentación</label><input id="ct-mt-contenido" type="number" min="0" step="0.01" placeholder="Ej. 20"></div>
+        <div>
+          <label>Contenido por presentación</label>
+          <div class="flex" style="gap:8px">
+            <input id="ct-mt-contenido" type="number" min="0" step="0.01" placeholder="Ej. 20">
+            <select id="ct-mt-contenido-und" style="max-width:120px"></select>
+          </div>
+        </div>
         <div><label>Costo presentación</label><input id="ct-mt-costo" type="number" min="0" step="0.01" placeholder="Ej. 200"></div>
       </div>
       <div class="toolbar" style="margin-top:8px">
@@ -988,8 +994,14 @@
         <div><label>Precio venta</label><input id="ct-r-precio" type="number" min="0" step="0.01"></div>
       </div>
       <div class="grid g4" style="margin-top:8px">
-        <div><label>Material</label><select id="ct-r-mat"></select></div>
-        <div><label>Cantidad</label><input id="ct-r-cant" type="number" min="0" step="0.01"></div>
+        <div><label>Material</label><select id="ct-r-mat" onchange="syncIngredienteUnidad()"></select></div>
+        <div>
+          <label>Cantidad</label>
+          <div class="flex" style="gap:8px">
+            <input id="ct-r-cant" type="number" min="0" step="0.01">
+            <select id="ct-r-cant-und" style="max-width:120px"></select>
+          </div>
+        </div>
         <div class="flex" style="align-items:flex-end"><button class="btn alt" onclick="addIngredienteReceta()" id="ct-r-add-btn">Agregar ingrediente</button></div>
       </div>
       <table id="tabla-receta-it" style="margin-top:8px">
@@ -1460,6 +1472,20 @@ function normalizeDB(){
   if(!DB.costeo) DB.costeo = { materiales: [], recetas: [] };
   if(!Array.isArray(DB.costeo.materiales)) DB.costeo.materiales = [];
   if(!Array.isArray(DB.costeo.recetas)) DB.costeo.recetas = [];
+  DB.costeo.materiales.forEach(m=>{
+    if(!m || m.contenidoUnidad) return;
+    const u = (m.unidad||'').toLowerCase();
+    if(u==='kilogramo'){
+      m.contenido = Number(m.contenido||0) * 1000;
+      m.contenidoUnidad = 'g';
+    }else if(u==='litro'){
+      m.contenido = Number(m.contenido||0) * 1000;
+      m.contenidoUnidad = 'ml';
+    }else{
+      m.contenidoUnidad = baseUnitLabel(u);
+    }
+    m.costoUnit = computeCostoUnit(m.unidad, Number(m.contenido||0), Number(m.costo||0));
+  });
   if(!Array.isArray(DB.productos) || DB.productos.length===0){
     DB.productos = SEED.map(x => ({...x, activo:true}));
   }
@@ -1832,7 +1858,7 @@ function initUI(){
   renderGastos();
   renderDashboard();
   renderB2B();
-  renderMateriales(); renderRecetasList(); renderSelectMateriales();
+  renderMateriales(); renderRecetasList(); renderSelectMateriales(); syncMaterialContenidoUnidad();
   renderCalendario();
   renderEventos();
   initEnvioUI();
@@ -3547,16 +3573,81 @@ function calcCostoReceta(receta){
 function renderSelectMateriales(){
   const opts = (DB.costeo.materiales||[]).map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('');
   const sel = document.getElementById('ct-r-mat'); if(sel){ sel.innerHTML = `<option value="">— Selecciona —</option>`+opts; }
+  syncIngredienteUnidad();
+}
+function isPesoUnit(unidad){
+  const u = (unidad||'').toLowerCase();
+  return u==='gramo' || u==='kilogramo';
+}
+function isVolumenUnit(unidad){
+  const u = (unidad||'').toLowerCase();
+  return u==='mililitro' || u==='litro';
+}
+function inputUnitOptions(unidad){
+  const u = (unidad||'').toLowerCase();
+  if(isPesoUnit(u)) return [{value:'gramo', label:'g'}, {value:'kilogramo', label:'kg'}];
+  if(isVolumenUnit(u)) return [{value:'mililitro', label:'ml'}, {value:'litro', label:'L'}];
+  return [{value:'pieza', label:'pza'}];
+}
+function defaultInputUnit(unidad){
+  const u = (unidad||'').toLowerCase();
+  if(u==='kilogramo') return 'kilogramo';
+  if(u==='gramo') return 'gramo';
+  if(u==='litro') return 'litro';
+  if(u==='mililitro') return 'mililitro';
+  return 'pieza';
+}
+function toBaseAmount(value, fromUnit){
+  const n = Number(value||0);
+  const u = (fromUnit||'').toLowerCase();
+  if(u==='kilogramo' || u==='litro') return n * 1000;
+  return n;
+}
+function fromBaseAmount(value, toUnit){
+  const n = Number(value||0);
+  const u = (toUnit||'').toLowerCase();
+  if(u==='kilogramo' || u==='litro') return n / 1000;
+  return n;
+}
+function baseUnitLabel(unidad){
+  const u = (unidad||'').toLowerCase();
+  if(isPesoUnit(u)) return 'g';
+  if(isVolumenUnit(u)) return 'ml';
+  return 'pza';
+}
+function fillUnitSelect(selectId, unidad, selected){
+  const sel = document.getElementById(selectId); if(!sel) return;
+  const opts = inputUnitOptions(unidad);
+  const chosen = selected || defaultInputUnit(unidad);
+  sel.innerHTML = opts.map(o=>`<option value="${o.value}" ${o.value===chosen?'selected':''}>${o.label}</option>`).join('');
+}
+function syncMaterialContenidoUnidad(){
+  const unidad = document.getElementById('ct-mt-unidad')?.value || 'pieza';
+  fillUnitSelect('ct-mt-contenido-und', unidad);
+}
+function syncIngredienteUnidad(selected){
+  const matId = document.getElementById('ct-r-mat')?.value || '';
+  const m = (DB.costeo.materiales||[]).find(x=>x.id===matId);
+  fillUnitSelect('ct-r-cant-und', m?.unidad || 'pieza', selected);
+}
+function displayAmount(value, unit){
+  const n = Number(value||0);
+  if(!Number.isFinite(n)) return '';
+  const text = Number.isInteger(n) ? String(n) : Number(n.toFixed(3)).toString();
+  if(unit) return `${text} ${unit}`;
+  return text;
 }
 function computeCostoUnit(unidad, contenido, costo){
   if(contenido<=0 || costo<=0) return 0;
   let per = 0;
   switch((unidad||'').toLowerCase()){
     case 'pieza': per = costo / contenido; break;
-    case 'gramo': per = costo / contenido; break; // contenido en g
-    case 'kilogramo': per = costo / (contenido * 1000); break;
-    case 'mililitro': per = costo / contenido; break; // contenido en ml
-    case 'litro': per = costo / (contenido * 1000); break;
+    case 'gramo':
+    case 'kilogramo':
+    case 'mililitro':
+    case 'litro':
+      per = costo / contenido;
+      break;
     default: per = costo / contenido; break;
   }
   return Number(per.toFixed(6));
@@ -3564,21 +3655,24 @@ function computeCostoUnit(unidad, contenido, costo){
 function guardarMaterial(){
   const nombre = (document.getElementById('ct-mt-nombre').value||'').trim();
   const unidad = document.getElementById('ct-mt-unidad').value||'pieza';
-  const contenido = Number(document.getElementById('ct-mt-contenido').value||0);
+  const contenidoInput = Number(document.getElementById('ct-mt-contenido').value||0);
+  const contenidoUnidad = document.getElementById('ct-mt-contenido-und')?.value || defaultInputUnit(unidad);
+  const contenido = toBaseAmount(contenidoInput, contenidoUnidad);
   const costo = Number(document.getElementById('ct-mt-costo').value||0);
   if(!nombre || !unidad || contenido<=0 || costo<=0){ toast('Faltan datos para calcular costo por unidad', 'err'); return; }
   const costoUnit = computeCostoUnit(unidad, contenido, costo);
+  const matData = { nombre, unidad, contenido, contenidoUnidad: baseUnitLabel(unidad), costo, costoUnit };
   if(CT.editingMatId){
     const idx = DB.costeo.materiales.findIndex(x=>x.id===CT.editingMatId);
-    if(idx>-1) DB.costeo.materiales[idx] = { ...DB.costeo.materiales[idx], nombre, unidad, contenido, costo, costoUnit };
+    if(idx>-1) DB.costeo.materiales[idx] = { ...DB.costeo.materiales[idx], ...matData };
     CT.editingMatId = null; toast('Material actualizado');
   }else{
-    DB.costeo.materiales.push({ id:id_uniq(), nombre, unidad, contenido, costo, costoUnit }); toast('Material guardado');
+    DB.costeo.materiales.push({ id:id_uniq(), ...matData }); toast('Material guardado');
   }
   saveDB(); renderMateriales(); renderSelectMateriales(); limpiarMaterial(); recalcReceta();
 }
-function limpiarMaterial(){ ['ct-mt-nombre','ct-mt-contenido','ct-mt-costo'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; }); document.getElementById('ct-mt-unidad').value='pieza'; CT.editingMatId=null; }
-function editarMaterial(id){ const m = DB.costeo.materiales.find(x=>x.id===id); if(!m) return; CT.editingMatId=id; document.getElementById('ct-mt-nombre').value=m.nombre; document.getElementById('ct-mt-unidad').value=m.unidad; document.getElementById('ct-mt-contenido').value=m.contenido; document.getElementById('ct-mt-costo').value=m.costo; }
+function limpiarMaterial(){ ['ct-mt-nombre','ct-mt-contenido','ct-mt-costo'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; }); document.getElementById('ct-mt-unidad').value='pieza'; syncMaterialContenidoUnidad(); CT.editingMatId=null; }
+function editarMaterial(id){ const m = DB.costeo.materiales.find(x=>x.id===id); if(!m) return; CT.editingMatId=id; document.getElementById('ct-mt-nombre').value=m.nombre; document.getElementById('ct-mt-unidad').value=m.unidad; syncMaterialContenidoUnidad(); const inputUnit = defaultInputUnit(m.unidad); fillUnitSelect('ct-mt-contenido-und', m.unidad, inputUnit); document.getElementById('ct-mt-contenido').value=fromBaseAmount(m.contenido, inputUnit); document.getElementById('ct-mt-costo').value=m.costo; }
 function eliminarMaterial(id){ if(!confirm('¿Eliminar material?')) return; DB.costeo.materiales = DB.costeo.materiales.filter(x=>x.id!==id); saveDB(); renderMateriales(); renderSelectMateriales(); recalcReceta(); }
 function renderMateriales(){
   const tb = document.querySelector('#tabla-materiales tbody'); if(!tb) return;
@@ -3592,7 +3686,7 @@ function renderMateriales(){
   tb.innerHTML = arr.map(m=>`<tr>
     <td>${m.nombre}</td>
     <td>${m.unidad}</td>
-    <td>${m.contenido}</td>
+    <td>${displayAmount(m.contenido, baseUnitLabel(m.unidad))}</td>
     <td class="right">${m.costo? fmt(m.costo):''}</td>
     <td class="right">${m.costoUnit? fmt(m.costoUnit):''}</td>
     <td><button class="btn alt" onclick="editarMaterial('${m.id}')">Editar</button> <button class="btn ghost" onclick="eliminarMaterial('${m.id}')">Eliminar</button></td>
@@ -3610,14 +3704,17 @@ function nuevaReceta(){
   recalcReceta();
 }
 function addIngredienteReceta(){
-  const matId = document.getElementById('ct-r-mat').value; const cant = Number(document.getElementById('ct-r-cant').value||0);
+  const matId = document.getElementById('ct-r-mat').value;
+  const cantInput = Number(document.getElementById('ct-r-cant').value||0);
+  const cantUnidad = document.getElementById('ct-r-cant-und')?.value || 'pieza';
+  const cant = toBaseAmount(cantInput, cantUnidad);
   if(!matId || cant<=0){ toast('Selecciona material y cantidad válida','err'); return; }
   if(CT.editingIngId){
     const idx = CT.receta.items.findIndex(x=>x.id===CT.editingIngId);
-    if(idx>-1){ CT.receta.items[idx] = { ...CT.receta.items[idx], matId, cant }; }
+    if(idx>-1){ CT.receta.items[idx] = { ...CT.receta.items[idx], matId, cant, cantUnidad: baseUnitLabel(cantUnidad) }; }
     CT.editingIngId = null; document.getElementById('ct-r-add-btn').textContent='Agregar ingrediente';
   }else{
-    CT.receta.items.push({ id:id_uniq(), matId, cant });
+    CT.receta.items.push({ id:id_uniq(), matId, cant, cantUnidad: baseUnitLabel(cantUnidad) });
   }
   document.getElementById('ct-r-cant').value='';
   renderRecetaItems(); recalcReceta();
@@ -3629,8 +3726,8 @@ function renderRecetaItems(){
   const mats = new Map((DB.costeo.materiales||[]).map(m=>[m.id,m]));
   tb.innerHTML = (CT.receta.items||[]).map(it=>{ const m=mats.get(it.matId)||{}; const cost= (m.costoUnit||0) * (it.cant||0); return `<tr>
     <td>${m.nombre||'—'}</td>
-    <td>${it.cant}</td>
-    <td>${m.unidad||''}</td>
+    <td>${displayAmount(it.cant, baseUnitLabel(m.unidad))}</td>
+    <td>${baseUnitLabel(m.unidad)}</td>
     <td class="right">${m.costoUnit? fmt(m.costoUnit):''}</td>
     <td class="right">${cost? fmt(cost):''}</td>
     <td>
@@ -3640,7 +3737,7 @@ function renderRecetaItems(){
     </td>
   </tr>`; }).join('') || `<tr><td colspan="6" class="muted">Sin ingredientes</td></tr>`;
 }
-function editarIngrediente(id){ const it=(CT.receta.items||[]).find(x=>x.id===id); if(!it) return; CT.editingIngId=id; document.getElementById('ct-r-mat').value=it.matId; document.getElementById('ct-r-cant').value=it.cant; document.getElementById('ct-r-add-btn').textContent='Actualizar ingrediente'; }
+function editarIngrediente(id){ const it=(CT.receta.items||[]).find(x=>x.id===id); if(!it) return; CT.editingIngId=id; document.getElementById('ct-r-mat').value=it.matId; const m=(DB.costeo.materiales||[]).find(x=>x.id===it.matId); const editUnit = isPesoUnit(m?.unidad) ? 'gramo' : (isVolumenUnit(m?.unidad) ? 'mililitro' : 'pieza'); syncIngredienteUnidad(editUnit); document.getElementById('ct-r-cant').value=fromBaseAmount(it.cant, editUnit); document.getElementById('ct-r-add-btn').textContent='Actualizar ingrediente'; }
 function duplicarIngrediente(id){ const it=(CT.receta.items||[]).find(x=>x.id===id); if(!it) return; const copy={...it,id:id_uniq()}; CT.receta.items.push(copy); renderRecetaItems(); recalcReceta(); }
 function addCostoIndirecto(){
   const concEl = document.getElementById('ct-ci-conc');
