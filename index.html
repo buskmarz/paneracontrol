@@ -381,6 +381,7 @@
     <button data-tab="tab-productos">Productos</button>
     <button data-tab="tab-cotizador">Cotizador</button>
     <button data-tab="tab-gastos">Gastos</button>
+    <button data-tab="tab-finanzas">Finanzas</button>
     <button data-tab="tab-reportes">Reportes</button>
     <button data-tab="tab-config">Configuración</button>
     <button data-tab="tab-calendario">Calendario</button>
@@ -1107,6 +1108,53 @@
     </section>
   </section>
 
+  <!-- FINANZAS -->
+  <section id="tab-finanzas" class="tab hidden">
+    <section class="card">
+      <div class="flex" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0">Control financiero</h3>
+        <button class="btn alt" onclick="exportarCSVEstadoCuenta()">Exportar estado CSV</button>
+      </div>
+      <div class="grid g4" style="margin-top:8px">
+        <div><label>Desde</label><input type="date" id="fin-desde" oninput="renderFinanzas()"></div>
+        <div><label>Hasta</label><input type="date" id="fin-hasta" oninput="renderFinanzas()"></div>
+        <div><label>Costo variable (%)</label><input type="number" id="fin-var-pct" min="0" max="99" step="0.01" value="35" oninput="renderFinanzas()"></div>
+        <div><label>Ticket promedio para equilibrio</label><input type="number" id="fin-ticket" min="0" step="0.01" oninput="renderFinanzas()"></div>
+      </div>
+      <div class="kpi" id="fin-kpis" style="margin-top:10px"></div>
+    </section>
+
+    <div class="grid g2" style="margin-top:12px">
+      <section class="card">
+        <h3>Punto de equilibrio</h3>
+        <div id="fin-equilibrio" class="totals compact"></div>
+      </section>
+      <section class="card">
+        <h3>Registrar nómina</h3>
+        <div class="grid g2">
+          <div><label>Fecha</label><input type="date" id="nom-fecha"></div>
+          <div><label>Colaborador</label><input id="nom-colab" placeholder="Nombre"></div>
+          <div><label>Periodo</label><input id="nom-periodo" placeholder="Ej. 1-15 mayo"></div>
+          <div><label>Método</label><select id="nom-metodo"></select></div>
+          <div><label>Monto</label><input type="number" id="nom-monto" min="0" step="0.01"></div>
+          <div><label>Notas</label><input id="nom-notas" placeholder="Bono, ajuste, anticipo"></div>
+        </div>
+        <div class="toolbar" style="margin-top:8px">
+          <button class="btn primary" onclick="guardarNomina()">Guardar nómina</button>
+          <button class="btn ghost" onclick="limpiarNomina()">Limpiar</button>
+        </div>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:12px">
+      <h3>Estado de cuenta</h3>
+      <table id="tabla-estado-cuenta">
+        <thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th class="right">Ingreso</th><th class="right">Egreso</th><th class="right">Saldo</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </section>
+
   <!-- REPORTES -->
   <section id="tab-reportes" class="tab hidden">
     <section class="card">
@@ -1127,6 +1175,8 @@
             <option value="ventas_categoria">Ventas por categoría</option>
             <option value="top_productos">Top productos</option>
             <option value="corte_caja">Corte de caja (rango)</option>
+            <option value="estado_cuenta">Estado de cuenta</option>
+            <option value="punto_equilibrio">Punto de equilibrio</option>
           </select>
         </div>
       </div>
@@ -1223,6 +1273,7 @@
   <footer><span id="footer-brand">Panera Signature</span>.</footer>
 </div>
 
+<script src="/finance-core.js"></script>
 <script src="/b2b/data.js"></script>
 <script>
 /* ==============================
@@ -1818,6 +1869,7 @@ function initUI(){
       document.querySelectorAll("section.tab").forEach(s=>s.classList.add("hidden"));
       document.getElementById(btn.dataset.tab).classList.remove("hidden");
       if(btn.dataset.tab==="tab-dashboard") renderDashboard();
+      if(btn.dataset.tab==="tab-finanzas") renderFinanzas();
       if(btn.dataset.tab==="tab-b2b") renderB2B();
       if(btn.dataset.tab==="tab-calendario"){ renderCalendario(); renderEventos(); }
       if(btn.dataset.tab==="tab-cotizador"){ renderMateriales(); renderRecetasList(); renderSelectMateriales(); renderIndirectos(); recalcReceta(); initEnvioUI(); }
@@ -1828,6 +1880,7 @@ function initUI(){
   fillSelect("pago-metodo", getMetodosVentas());
   fillSelect("v-metodo-pago-top", getMetodosVentas());
   fillSelect("g-metodo", getMetodosGastos());
+  fillSelect("nom-metodo", getMetodosGastos());
   fillSelect("g-cat", GASTO_CATS);
 
   // Filtros de ventas recientes
@@ -1859,6 +1912,7 @@ function initUI(){
   renderDashboard();
   renderB2B();
   renderMateriales(); renderRecetasList(); renderSelectMateriales(); syncMaterialContenidoUnidad();
+  initFinanzasUI(); renderFinanzas();
   renderCalendario();
   renderEventos();
   initEnvioUI();
@@ -2343,7 +2397,7 @@ function guardarVenta(){
     DB.ventas.unshift(venta); saveDB(); toast("Venta guardada: "+folio);
     if(DB.config.autoPrintTicket){ try{ imprimirTicket(); }catch(e){} }
   }
-  nuevaVenta(); renderVentasRecientes(); renderClientes(); renderDashboard();
+  nuevaVenta(); renderVentasRecientes(); renderClientes(); renderDashboard(); renderFinanzas();
 }
 
 function nuevaVenta(){
@@ -2490,7 +2544,7 @@ function eliminarVenta(ventaId){
   if(!v) return;
   if(!confirm(`¿Eliminar la venta ${v.folio}? Esta acción no se puede deshacer.`)) return;
   DB.ventas = DB.ventas.filter(x=>x.id!==ventaId);
-  saveDB(); renderVentasRecientes(); renderClientes(); renderDashboard();
+  saveDB(); renderVentasRecientes(); renderClientes(); renderDashboard(); renderFinanzas();
   toast("Venta eliminada: "+v.folio);
 }
 
@@ -2519,7 +2573,7 @@ function guardarGasto(){
   }
 
   if(proveedor && !DB.proveedores.includes(proveedor)){ DB.proveedores.push(proveedor); }
-  saveDB(); renderProveedoresDatalist(); renderGastos(); renderDashboard();
+  saveDB(); renderProveedoresDatalist(); renderGastos(); renderDashboard(); renderFinanzas();
 
   document.getElementById("g-monto").value="";
   document.getElementById("g-desc").value="";
@@ -2580,7 +2634,7 @@ function duplicarGasto(id){
   if(!g) return;
   const nuevo = { ...g, id:id_uniq(), fecha:hoyISO() };
   DB.gastos.unshift(nuevo);
-  saveDB(); renderGastos(); renderDashboard();
+  saveDB(); renderGastos(); renderDashboard(); renderFinanzas();
   toast('Gasto duplicado');
 }
 function eliminarGasto(id){
@@ -2588,12 +2642,108 @@ function eliminarGasto(id){
   if(!g) return;
   if(!confirm(`¿Eliminar el gasto de ${fmt(g.monto)} (${g.categoria}) del ${g.fecha}?`)) return;
   DB.gastos = DB.gastos.filter(x=>x.id!==id);
-  saveDB(); renderGastos(); renderDashboard(); toast("Gasto eliminado");
+  saveDB(); renderGastos(); renderDashboard(); renderFinanzas(); toast("Gasto eliminado");
 }
 function exportarCSVGastos(){
   const headers = ["Fecha","Categoria","Proveedor","Descripcion","Metodo","Monto"]; 
   const rows = DB.gastos.map(g=>[g.fecha,g.categoria,g.proveedor||"",g.desc||"",g.metodo, g.monto]);
   descargarCSV([headers,...rows], `gastos_${hoyISO()}.csv`);
+}
+
+function initFinanzasUI(){
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const desde = document.getElementById('fin-desde');
+  const hasta = document.getElementById('fin-hasta');
+  const nomFecha = document.getElementById('nom-fecha');
+  if(desde && !desde.value) desde.value = ymd(start);
+  if(hasta && !hasta.value) hasta.value = hoyISO();
+  if(nomFecha && !nomFecha.value) nomFecha.value = hoyISO();
+}
+function getFinRange(){
+  initFinanzasUI();
+  return {
+    desde: document.getElementById('fin-desde')?.value || '',
+    hasta: document.getElementById('fin-hasta')?.value || ''
+  };
+}
+function renderFinanzas(){
+  if(!window.FinanceCore) return;
+  const { desde, hasta } = getFinRange();
+  const summary = FinanceCore.buildFinancialSummary(DB, desde, hasta);
+  const avgTicketInput = document.getElementById('fin-ticket');
+  if(avgTicketInput && !avgTicketInput.value && summary.avgTicket > 0) avgTicketInput.value = summary.avgTicket;
+  const variablePct = Number(document.getElementById('fin-var-pct')?.value || 35);
+  const avgTicket = Number(document.getElementById('fin-ticket')?.value || summary.avgTicket || 0);
+  const breakEven = FinanceCore.calculateBreakEven({ fixedCosts: summary.fixedCosts, variableCostPct: variablePct, avgTicket });
+
+  const kpis = document.getElementById('fin-kpis');
+  if(kpis){
+    kpis.innerHTML = `
+      <div class="box"><h3>Ventas facturadas</h3><b>${fmt(summary.salesTotal)}</b></div>
+      <div class="box"><h3>Ingresos cobrados</h3><b>${fmt(summary.cashIn)}</b></div>
+      <div class="box"><h3>Cuentas por cobrar</h3><b>${fmt(summary.receivables)}</b></div>
+      <div class="box"><h3>Gastos totales</h3><b>${fmt(summary.expensesTotal)}</b></div>
+      <div class="box"><h3>Nómina</h3><b>${fmt(summary.payrollTotal)}</b></div>
+      <div class="box"><h3>Utilidad neta</h3><b>${fmt(summary.netProfit)}</b></div>
+      <div class="box"><h3>Flujo de caja</h3><b>${fmt(summary.cashBalance)}</b></div>
+      <div class="box"><h3>Ticket promedio</h3><b>${fmt(summary.avgTicket)}</b></div>
+    `;
+  }
+
+  const equilibrio = document.getElementById('fin-equilibrio');
+  if(equilibrio){
+    equilibrio.innerHTML = `
+      <div><b>Costos fijos del rango</b><div class="right">${fmt(breakEven.fixedCosts)}</div></div>
+      <div><b>Margen contribución</b><div class="right">${breakEven.contributionPct.toFixed(2)}%</div></div>
+      <div><b>Ventas necesarias</b><div class="right">${fmt(breakEven.salesRequired)}</div></div>
+      <div><b>Tickets necesarios</b><div class="right">${breakEven.ticketsRequired}</div></div>
+    `;
+  }
+
+  const rows = FinanceCore.buildAccountStatement(DB, desde, hasta);
+  const tb = document.querySelector('#tabla-estado-cuenta tbody');
+  if(tb){
+    tb.innerHTML = rows.map(r=>`<tr>
+      <td>${r.date}</td>
+      <td>${r.type === 'ingreso' ? 'Ingreso' : 'Egreso'}</td>
+      <td>${r.concept}</td>
+      <td class="right">${r.income ? fmt(r.income) : ''}</td>
+      <td class="right">${r.expense ? fmt(r.expense) : ''}</td>
+      <td class="right">${fmt(r.balance)}</td>
+    </tr>`).join('') || `<tr><td colspan="6" class="muted">Sin movimientos en el rango</td></tr>`;
+  }
+}
+function limpiarNomina(){
+  ['nom-colab','nom-periodo','nom-monto','nom-notas'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  const fecha = document.getElementById('nom-fecha'); if(fecha) fecha.value = hoyISO();
+}
+function guardarNomina(){
+  if(!window.FinanceCore) return;
+  const colaborador = (document.getElementById('nom-colab')?.value || '').trim();
+  const monto = Number(document.getElementById('nom-monto')?.value || 0);
+  if(!colaborador || monto<=0){ alert('Captura colaborador y monto de nómina válido'); return; }
+  const gasto = FinanceCore.buildPayrollExpense({
+    id: id(),
+    fecha: document.getElementById('nom-fecha')?.value || hoyISO(),
+    colaborador,
+    periodo: document.getElementById('nom-periodo')?.value || '',
+    metodo: document.getElementById('nom-metodo')?.value || 'Transferencia',
+    monto,
+    notas: document.getElementById('nom-notas')?.value || ''
+  });
+  DB.gastos.push(gasto);
+  if(colaborador && !DB.proveedores.includes(colaborador)) DB.proveedores.push(colaborador);
+  saveDB();
+  renderProveedoresDatalist(); renderGastos(); renderDashboard(); renderFinanzas();
+  limpiarNomina();
+  toast('Nómina registrada como gasto');
+}
+function exportarCSVEstadoCuenta(){
+  if(!window.FinanceCore) return;
+  const { desde, hasta } = getFinRange();
+  const rows = FinanceCore.buildAccountStatement(DB, desde, hasta).map(r=>[r.date, r.type, r.concept, r.income, r.expense, r.balance]);
+  descargarCSV([['Fecha','Tipo','Concepto','Ingreso','Egreso','Saldo'], ...rows], `estado_cuenta_${desde||'inicio'}_${hasta||hoyISO()}.csv`);
 }
 
 function fijarMesActualGastos(){
@@ -2698,6 +2848,29 @@ function generarReporte(){
     cont.innerHTML = '<h4>Gráfica</h4><canvas id="repBar"></canvas>';
     out.appendChild(cont);
     drawChartBar('repBar', Object.keys(porMP), Object.values(porMP), ()=>{});
+    return;
+  }
+
+  if(tipo==="estado_cuenta"){
+    if(!window.FinanceCore){ out.innerHTML = '<p class="muted">Módulo financiero no disponible.</p>'; return; }
+    const rows = FinanceCore.buildAccountStatement(DB, d, h).map(r=>fmtRow([r.date, r.type === 'ingreso' ? 'Ingreso' : 'Egreso', r.concept, fmt(r.income), fmt(r.expense), fmt(r.balance)]));
+    out.innerHTML = table(["Fecha","Tipo","Concepto","Ingreso","Egreso","Saldo"], rows);
+    return;
+  }
+
+  if(tipo==="punto_equilibrio"){
+    if(!window.FinanceCore){ out.innerHTML = '<p class="muted">Módulo financiero no disponible.</p>'; return; }
+    const summary = FinanceCore.buildFinancialSummary(DB, d, h);
+    const variablePct = summary.salesTotal > 0 ? Math.min(99, (summary.variableCosts / summary.salesTotal) * 100) : 35;
+    const be = FinanceCore.calculateBreakEven({ fixedCosts: summary.fixedCosts, variableCostPct: variablePct, avgTicket: summary.avgTicket });
+    out.innerHTML = `
+      <div class="kpi" style="margin-top:6px">
+        <div class="box"><h3>Costos fijos</h3><b>${fmt(be.fixedCosts)}</b></div>
+        <div class="box"><h3>Costo variable</h3><b>${be.variableCostPct.toFixed(2)}%</b></div>
+        <div class="box"><h3>Margen contribución</h3><b>${be.contributionPct.toFixed(2)}%</b></div>
+        <div class="box"><h3>Ventas necesarias</h3><b>${fmt(be.salesRequired)}</b></div>
+        <div class="box"><h3>Tickets necesarios</h3><b>${be.ticketsRequired}</b></div>
+      </div>`;
     return;
   }
 
@@ -2836,7 +3009,7 @@ function guardarConfig(){
   fillSelect("g-metodo", getMetodosGastos());
   fillSelectFiltro("f-mp", getMetodosVentas());
   const fb = document.getElementById('footer-brand'); if(fb) fb.textContent = DB.config.nombreNegocio;
-  recalc(); renderDashboard(); toast("Configuración guardada");
+  recalc(); renderDashboard(); renderFinanzas(); toast("Configuración guardada");
 }
 function resetearTodo(){
   if(!confirm("¿Borrar toda la base local? Esta acción es irreversible.")) return;
@@ -2862,6 +3035,7 @@ function renderDashboard(){
   const pagadoRango = sum(ventasRango.filter(v=> (v.estatusPago||"") === "Pagado"), v=>v.total);
   const saldoRango = sum(ventasRango.filter(v=> (v.estatusPago||"") !== "Pagado"), v=>Math.max(0, v.saldo||0));
   const totalGastosRango = sum(DB.gastos.filter(g=> inRange(g.fecha)), g=>g.monto);
+  const fin = window.FinanceCore ? FinanceCore.buildFinancialSummary(DB, rDesde, rHasta) : null;
 
   const countTicketsRango = ventasRango.length || 1;
   const ticketProm = ventasRangoTotal / countTicketsRango;
@@ -2879,6 +3053,8 @@ function renderDashboard(){
       <div class="box"><h3>CxC (rango)</h3><b>${fmt(saldoRango)}</b></div>
       <div class="box"><h3>Gastos (rango)</h3><b>${fmt(totalGastosRango)}</b></div>
       <div class="box"><h3>Utilidad (rango)</h3><b>${fmt(ventasRangoTotal - totalGastosRango)}</b></div>
+      <div class="box"><h3>Flujo de caja</h3><b>${fmt(fin ? fin.cashBalance : (pagadoRango - totalGastosRango))}</b></div>
+      <div class="box"><h3>Nómina</h3><b>${fmt(fin ? fin.payrollTotal : 0)}</b></div>
       <div class="box"><h3>Ticket promedio</h3><b>${fmt(ticketProm)}</b></div>
       <div class="box"><h3>Pasteles vendidos</h3><b>${pastelesVendidosRango}</b></div>
       <div class="box"><h3>Productos vendidos</h3><b>${productosVendidosRango}</b></div>
