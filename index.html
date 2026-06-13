@@ -740,7 +740,7 @@
           </div>
         </div>
         <div class="b2b-feature" aria-label="Selección B2B Panera Signature">
-          <img src="/b2b/assets/hero-desserts.svg" alt="Postres artesanales Panera Signature">
+          <img src="b2b/assets/hero-desserts.svg" alt="Postres artesanales Panera Signature">
           <div class="b2b-note">
             <span>Precios por volumen</span>
             <strong>1-5 · 6-15 · 16+</strong>
@@ -1028,6 +1028,26 @@
         </table>
       </section>
 
+      <section class="card" style="margin-top:8px">
+        <h3>Gastos ABC por tiempo</h3>
+        <div class="grid g4">
+          <div><label>Desde</label><input id="ct-abc-desde" type="date" oninput="recalcReceta()"></div>
+          <div><label>Hasta</label><input id="ct-abc-hasta" type="date" oninput="recalcReceta()"></div>
+          <div><label>Minutos productivos del periodo</label><input id="ct-abc-min-prod" type="number" min="0" step="1" placeholder="Ej. 6600" oninput="recalcReceta()"></div>
+          <div><label>Minutos de esta receta</label><input id="ct-abc-min-receta" type="number" min="0" step="0.01" placeholder="Ej. 45" oninput="recalcReceta()"></div>
+        </div>
+        <div style="margin-top:8px">
+          <label>Categorías de gastos a repartir</label>
+          <div id="ct-abc-cats" class="flex" style="gap:8px;flex-wrap:wrap"></div>
+        </div>
+        <div class="grid g4 totals compact" style="margin-top:8px">
+          <div><b>Gastos ABC</b><div id="ct-abc-gastos" class="right"></div></div>
+          <div><b>Costo por minuto</b><div id="ct-abc-costo-min" class="right"></div></div>
+          <div><b>Minutos receta</b><div id="ct-abc-min-out" class="right"></div></div>
+          <div><b>ABC aplicado</b><div id="ct-abc-costo" class="right"></div></div>
+        </div>
+      </section>
+
       <div class="totals compact" style="margin-top:8px;grid-template-columns:repeat(3,1fr)">
         <div><b>Costo receta</b><div id="ct-r-costo" class="right"></div></div>
         <div><b>Costo por unidad de venta</b><div id="ct-r-costo-unit" class="right"></div></div>
@@ -1273,8 +1293,8 @@
   <footer><span id="footer-brand">Panera Signature</span>.</footer>
 </div>
 
-<script src="/finance-core.js"></script>
-<script src="/b2b/data.js"></script>
+<script src="finance-core.js"></script>
+<script src="b2b/data.js"></script>
 <script>
 /* ==============================
    Panera Signature · Control de Pasteles
@@ -1573,8 +1593,13 @@ function saveDB(opts={}){
 /*******************************
  * SYNC BACKEND (NETLIFY)
  *******************************/
+const APP_BASE_PATH = window.location.pathname === "/sistema" || window.location.pathname.startsWith("/sistema/") ? "/sistema" : "";
+function appPath(path){
+  const p = String(path || "");
+  return `${APP_BASE_PATH}${p.startsWith("/") ? p : "/"+p}`;
+}
 const REMOTE = {
-  endpoint: "/.netlify/functions/db",
+  endpoint: appPath("/.netlify/functions/db"),
   timeoutMs: 8000,
   saveDelay: 800,
   saveTimer: null,
@@ -1714,6 +1739,10 @@ function toast(msg, kind="ok", timeout=2400){
  *******************************/
 const B2B_STORAGE_KEY = "panera.b2b.order";
 function getB2BProducts(){ return Array.isArray(window.PANERA_B2B_PRODUCTS) ? window.PANERA_B2B_PRODUCTS : []; }
+function b2bAssetPath(path){
+  const clean = String(path||'').replace(/^\/+/, '');
+  return appPath('/'+clean);
+}
 function getB2BOrder(){
   try{
     const raw = localStorage.getItem(B2B_STORAGE_KEY);
@@ -1734,7 +1763,7 @@ function renderB2B(){
   if(grid){
     grid.innerHTML = products.map(product => `
       <article class="b2b-product">
-        <img src="${product.image}" alt="${product.name}" loading="lazy">
+        <img src="${b2bAssetPath(product.image)}" alt="${product.name}" loading="lazy">
         <div class="b2b-product-body">
           <h3>${product.name}</h3>
           <div class="b2b-prices">
@@ -1816,7 +1845,7 @@ async function submitB2BOrder(event){
     status.className = "b2b-status";
   }
   try{
-    const response = await fetch("/.netlify/functions/b2b-whatsapp", {
+    const response = await fetch(appPath("/.netlify/functions/b2b-whatsapp"), {
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify(payload)
@@ -1872,7 +1901,7 @@ function initUI(){
       if(btn.dataset.tab==="tab-finanzas") renderFinanzas();
       if(btn.dataset.tab==="tab-b2b") renderB2B();
       if(btn.dataset.tab==="tab-calendario"){ renderCalendario(); renderEventos(); }
-      if(btn.dataset.tab==="tab-cotizador"){ renderMateriales(); renderRecetasList(); renderSelectMateriales(); renderIndirectos(); recalcReceta(); initEnvioUI(); }
+      if(btn.dataset.tab==="tab-cotizador"){ renderMateriales(); renderRecetasList(); renderSelectMateriales(); renderIndirectos(); syncAbcForm(); recalcReceta(); initEnvioUI(); }
     };
   });
 
@@ -1911,7 +1940,7 @@ function initUI(){
   renderGastos();
   renderDashboard();
   renderB2B();
-  renderMateriales(); renderRecetasList(); renderSelectMateriales(); syncMaterialContenidoUnidad();
+  renderMateriales(); renderRecetasList(); renderSelectMateriales(); syncMaterialContenidoUnidad(); syncAbcForm();
   initFinanzasUI(); renderFinanzas();
   renderCalendario();
   renderEventos();
@@ -3726,6 +3755,23 @@ function ensureIndirectos(receta){
   if(!receta) return;
   if(!Array.isArray(receta.indirectos)) receta.indirectos = [];
 }
+function defaultAbcConfig(){
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  return {
+    enabled: true,
+    from: ymd(start),
+    to: hoyISO(),
+    categories: ['Nómina','Renta','Servicios','Mantenimiento','Varios'],
+    productiveMinutes: 6600,
+    recipeMinutes: 0
+  };
+}
+function ensureAbc(receta){
+  if(!receta) return;
+  if(!receta.abc || typeof receta.abc !== 'object') receta.abc = defaultAbcConfig();
+  if(!Array.isArray(receta.abc.categories)) receta.abc.categories = defaultAbcConfig().categories;
+}
 function resetCostoIndirectoForm(){
   const conc = document.getElementById('ct-ci-conc'); if(conc) conc.value = '';
   const monto = document.getElementById('ct-ci-monto'); if(monto) monto.value = '';
@@ -3733,6 +3779,7 @@ function resetCostoIndirectoForm(){
   const btn = document.getElementById('ct-ci-add-btn'); if(btn) btn.textContent = 'Agregar costo';
 }
 function calcCostoReceta(receta){
+  ensureAbc(receta);
   const mats = new Map((DB.costeo.materiales||[]).map(m=>[m.id,m]));
   let totalPz=0, totalGr=0;
   (receta.items||[]).forEach(it=>{
@@ -3742,14 +3789,55 @@ function calcCostoReceta(receta){
     if(unit==='pieza') totalPz += cost; else totalGr += cost;
   });
   const indirectos = sum((receta.indirectos||[]), x=> Number(x.monto||0));
+  const abc = window.FinanceCore ? FinanceCore.calculateAbcCost(DB, {
+    from: receta.abc.from,
+    to: receta.abc.to,
+    categories: receta.abc.categories,
+    productiveMinutes: receta.abc.productiveMinutes,
+    recipeMinutes: receta.abc.recipeMinutes
+  }) : { expensesTotal:0, costPerMinute:0, recipeMinutes:0, recipeCost:0 };
   const insumos = totalPz + totalGr;
-  const costo = insumos + indirectos;
-  return { totalPz, totalGr, insumos, indirectos, costo };
+  const costo = insumos + indirectos + Number(abc.recipeCost||0);
+  return { totalPz, totalGr, insumos, indirectos, abc, costo };
 }
 function renderSelectMateriales(){
   const opts = (DB.costeo.materiales||[]).map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('');
   const sel = document.getElementById('ct-r-mat'); if(sel){ sel.innerHTML = `<option value="">— Selecciona —</option>`+opts; }
   syncIngredienteUnidad();
+}
+function renderAbcCats(){
+  const wrap = document.getElementById('ct-abc-cats'); if(!wrap) return;
+  ensureAbc(CT.receta);
+  const selected = new Set(CT.receta.abc.categories || []);
+  wrap.innerHTML = GASTO_CATS.map(cat=>`
+    <label class="tag" style="cursor:pointer">
+      <input type="checkbox" value="${cat}" ${selected.has(cat)?'checked':''} onchange="recalcReceta()">
+      ${cat}
+    </label>
+  `).join('');
+}
+function readAbcForm(){
+  ensureAbc(CT.receta);
+  const cats = Array.from(document.querySelectorAll('#ct-abc-cats input[type="checkbox"]:checked')).map(el=>el.value);
+  CT.receta.abc = {
+    enabled: true,
+    from: document.getElementById('ct-abc-desde')?.value || defaultAbcConfig().from,
+    to: document.getElementById('ct-abc-hasta')?.value || defaultAbcConfig().to,
+    categories: cats,
+    productiveMinutes: Number(document.getElementById('ct-abc-min-prod')?.value || 0),
+    recipeMinutes: Number(document.getElementById('ct-abc-min-receta')?.value || 0)
+  };
+  return CT.receta.abc;
+}
+function syncAbcForm(){
+  ensureAbc(CT.receta);
+  const abc = CT.receta.abc;
+  const setVal = (id,v)=>{ const el=document.getElementById(id); if(el) el.value = v ?? ''; };
+  setVal('ct-abc-desde', abc.from || defaultAbcConfig().from);
+  setVal('ct-abc-hasta', abc.to || defaultAbcConfig().to);
+  setVal('ct-abc-min-prod', abc.productiveMinutes || '');
+  setVal('ct-abc-min-receta', abc.recipeMinutes || '');
+  renderAbcCats();
 }
 function isPesoUnit(unidad){
   const u = (unidad||'').toLowerCase();
@@ -3870,12 +3958,13 @@ function renderMateriales(){
 }
 function nuevaReceta(){
   CT.editingRecId=null;
-  CT.receta={ producto:'', rinde:1, precio:0, items:[], indirectos:[] };
+  CT.receta={ producto:'', rinde:1, precio:0, items:[], indirectos:[], abc: defaultAbcConfig() };
   document.getElementById('ct-r-nombre').value='';
   document.getElementById('ct-r-rinde').value=1;
   document.getElementById('ct-r-precio').value='';
   renderRecetaItems();
   renderIndirectos();
+  syncAbcForm();
   resetCostoIndirectoForm();
   recalcReceta();
 }
@@ -3975,10 +4064,12 @@ function recalcReceta(){
   const uv = (document.getElementById('ct-r-uv')?.value||'').trim();
   CT.receta.producto = nombre; CT.receta.rinde=rinde; CT.receta.precio=precio; CT.receta.uv = uv;
   ensureIndirectos(CT.receta);
+  readAbcForm();
   const detail = calcCostoReceta(CT.receta);
   const totalPz = detail.totalPz;
   const totalGr = detail.totalGr;
   const indirectos = detail.indirectos;
+  const abcCost = Number(detail.abc?.recipeCost || 0);
   const costo = detail.costo;
   const costoUnit = (rinde>0) ? (costo/rinde) : 0;
   const margenNeto = (precio>0 && costoUnit>0) ? (precio - costoUnit) : 0;
@@ -3990,6 +4081,10 @@ function recalcReceta(){
   set('ct-tot-pz', $(totalPz));
   set('ct-tot-gr', $(totalGr));
   set('ct-ci-total', $(indirectos));
+  set('ct-abc-gastos', $(detail.abc?.expensesTotal || 0));
+  set('ct-abc-costo-min', detail.abc?.costPerMinute ? `${fmt(detail.abc.costPerMinute)} / min` : '');
+  set('ct-abc-min-out', detail.abc?.recipeMinutes ? `${detail.abc.recipeMinutes} min` : '');
+  set('ct-abc-costo', $(abcCost));
   set('ct-r-costo', $(costo));
   set('ct-r-costo-unit', $(costoUnit));
   set('ct-r-precio-out', $(precio));
@@ -3997,28 +4092,29 @@ function recalcReceta(){
   set('ct-r-costo-marg', costoMarg>0? (costoMarg.toFixed(2)+'%') : '');
 
   // Dona distribución
-  const sumAll = totalPz + totalGr + indirectos;
+  const sumAll = totalPz + totalGr + indirectos + abcCost;
   const cont = document.getElementById('ct-ch-distrib');
   if(cont){
     if(sumAll<=0){ cont.closest('.card')?.classList.add('hidden'); }
     else{
       cont.closest('.card')?.classList.remove('hidden');
-      drawChartDoughnut('ct-ch-distrib', ['Piezas','Gr/ML','Indirectos'], [totalPz,totalGr,indirectos], ()=>{});
+      drawChartDoughnut('ct-ch-distrib', ['Piezas','Gr/ML','Indirectos','ABC tiempo'], [totalPz,totalGr,indirectos,abcCost], ()=>{});
     }
   }
 }
-['ct-r-nombre','ct-r-rinde','ct-r-precio'].forEach(id=> document.getElementById(id)?.addEventListener('input', recalcReceta));
+['ct-r-nombre','ct-r-rinde','ct-r-uv','ct-r-precio'].forEach(id=> document.getElementById(id)?.addEventListener('input', recalcReceta));
 function guardarReceta(){
   const r = CT.receta; if(!r.producto || (r.items||[]).length===0){ alert('Captura producto e ingredientes'); return; }
   ensureIndirectos(r);
+  readAbcForm();
   const detail = calcCostoReceta(r);
   const costo = detail.costo;
   if(CT.editingRecId){
     const idx = DB.costeo.recetas.findIndex(x=>x.id===CT.editingRecId);
-    if(idx>-1) DB.costeo.recetas[idx] = { ...DB.costeo.recetas[idx], producto:r.producto, rinde:r.rinde, uv:r.uv||'', precio:r.precio, costo, indirectos: JSON.parse(JSON.stringify(r.indirectos||[])), items: JSON.parse(JSON.stringify(r.items||[])), alergias: (document.getElementById('ct-r-alergias')?.value||''), prep:(document.getElementById('ct-r-prep')?.value||''), prepPuesto:(document.getElementById('ct-r-prep-puesto')?.value||''), apr:(document.getElementById('ct-r-apr')?.value||''), aprPuesto:(document.getElementById('ct-r-apr-puesto')?.value||'') };
+    if(idx>-1) DB.costeo.recetas[idx] = { ...DB.costeo.recetas[idx], producto:r.producto, rinde:r.rinde, uv:r.uv||'', precio:r.precio, costo, abc: JSON.parse(JSON.stringify(r.abc||defaultAbcConfig())), indirectos: JSON.parse(JSON.stringify(r.indirectos||[])), items: JSON.parse(JSON.stringify(r.items||[])), alergias: (document.getElementById('ct-r-alergias')?.value||''), prep:(document.getElementById('ct-r-prep')?.value||''), prepPuesto:(document.getElementById('ct-r-prep-puesto')?.value||''), apr:(document.getElementById('ct-r-apr')?.value||''), aprPuesto:(document.getElementById('ct-r-apr-puesto')?.value||'') };
     CT.editingRecId=null; toast('Receta actualizada');
   }else{
-    DB.costeo.recetas.push({ id:id_uniq(), producto:r.producto, rinde:r.rinde, uv:r.uv||'', precio:r.precio, costo, indirectos: JSON.parse(JSON.stringify(r.indirectos||[])), items: JSON.parse(JSON.stringify(r.items||[])), alergias:(document.getElementById('ct-r-alergias')?.value||''), prep:(document.getElementById('ct-r-prep')?.value||''), prepPuesto:(document.getElementById('ct-r-prep-puesto')?.value||''), apr:(document.getElementById('ct-r-apr')?.value||''), aprPuesto:(document.getElementById('ct-r-apr-puesto')?.value||'') }); toast('Receta guardada');
+    DB.costeo.recetas.push({ id:id_uniq(), producto:r.producto, rinde:r.rinde, uv:r.uv||'', precio:r.precio, costo, abc: JSON.parse(JSON.stringify(r.abc||defaultAbcConfig())), indirectos: JSON.parse(JSON.stringify(r.indirectos||[])), items: JSON.parse(JSON.stringify(r.items||[])), alergias:(document.getElementById('ct-r-alergias')?.value||''), prep:(document.getElementById('ct-r-prep')?.value||''), prepPuesto:(document.getElementById('ct-r-prep-puesto')?.value||''), apr:(document.getElementById('ct-r-apr')?.value||''), aprPuesto:(document.getElementById('ct-r-apr-puesto')?.value||'') }); toast('Receta guardada');
   }
   saveDB(); renderRecetasList(); nuevaReceta();
 }
@@ -4055,11 +4151,13 @@ function cargarReceta(id){
   document.getElementById('ct-r-prep-puesto').value=rc.prepPuesto||'';
   document.getElementById('ct-r-apr').value=rc.apr||'';
   document.getElementById('ct-r-apr-puesto').value=rc.aprPuesto||'';
-  CT.receta={ producto:rc.producto, rinde:rc.rinde||1, precio:rc.precio||0, uv:rc.uv||'', items: JSON.parse(JSON.stringify(rc.items||[])), indirectos: JSON.parse(JSON.stringify(rc.indirectos||[])) };
+  CT.receta={ producto:rc.producto, rinde:rc.rinde||1, precio:rc.precio||0, uv:rc.uv||'', abc: JSON.parse(JSON.stringify(rc.abc||defaultAbcConfig())), items: JSON.parse(JSON.stringify(rc.items||[])), indirectos: JSON.parse(JSON.stringify(rc.indirectos||[])) };
   ensureIndirectos(CT.receta);
+  ensureAbc(CT.receta);
   resetCostoIndirectoForm();
   renderRecetaItems();
   renderIndirectos();
+  syncAbcForm();
   recalcReceta();
   toast('Receta cargada');
 }
@@ -4127,6 +4225,8 @@ function exportarPDFReceta(id){
     <td>${ci.concepto||''}</td>
     <td class="right">${ci.monto? fmt(ci.monto):''}</td>
   </tr>`).join('') || `<tr><td colspan="2" class="muted">Sin costos indirectos</td></tr>`;
+  const abc = detail.abc || {};
+  const abcCats = (rc.abc?.categories||[]).join(', ');
   const brand = (DB.config && DB.config.nombreNegocio) ? DB.config.nombreNegocio : 'Panera Signature';
   const uv = rc.uv || 'unidad';
   const fecha = new Date().toLocaleString('es-MX');
@@ -4171,6 +4271,7 @@ function exportarPDFReceta(id){
         <tr><td>Insumos (gr/ml)</td><td class="right">${fmt(detail.totalGr)}</td></tr>
         <tr><td><b>Insumos total</b></td><td class="right"><b>${fmt(detail.insumos)}</b></td></tr>
         <tr><td>Indirectos</td><td class="right">${fmt(detail.indirectos)}</td></tr>
+        <tr><td>ABC por tiempo</td><td class="right">${fmt(abc.recipeCost||0)}</td></tr>
         <tr><td><b>Costo total receta</b></td><td class="right"><b>${fmt(detail.costo)}</b></td></tr>
         <tr><td>Costo por ${uv}</td><td class="right">${fmt(costoUnit)}</td></tr>
         <tr><td>Precio venta</td><td class="right">${fmt(precio)}</td></tr>
@@ -4192,6 +4293,19 @@ function exportarPDFReceta(id){
       <table>
         <thead><tr><th>Concepto</th><th class="right">Monto</th></tr></thead>
         <tbody>${indirectosRows}</tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h3>Gastos ABC por tiempo</h3>
+      <table class="summary">
+        <tr><td>Rango</td><td>${rc.abc?.from||''} a ${rc.abc?.to||''}</td></tr>
+        <tr><td>Categorías</td><td>${abcCats}</td></tr>
+        <tr><td>Gastos ABC del rango</td><td class="right">${fmt(abc.expensesTotal||0)}</td></tr>
+        <tr><td>Minutos productivos</td><td class="right">${abc.productiveMinutes||0}</td></tr>
+        <tr><td>Costo por minuto</td><td class="right">${fmt(abc.costPerMinute||0)}</td></tr>
+        <tr><td>Minutos receta</td><td class="right">${abc.recipeMinutes||0}</td></tr>
+        <tr><td><b>ABC aplicado</b></td><td class="right"><b>${fmt(abc.recipeCost||0)}</b></td></tr>
       </table>
     </div>
 

@@ -110,7 +110,26 @@
     const ticketsRequired = avgTicket > 0 ? Math.ceil(salesRequired / avgTicket) : 0;
     return { fixedCosts: money(fixedCosts), variableCostPct: money(variableCostPct), contributionPct, salesRequired, ticketsRequired };
   }
-  const api = { buildFinancialSummary, buildAccountStatement, buildPayrollExpense, calculateBreakEven };
+  function calculateAbcCost(db, input){
+    const from = input && input.from;
+    const to = input && input.to;
+    const categories = Array.isArray(input && input.categories) ? input.categories : [];
+    const productiveMinutes = num(input && input.productiveMinutes);
+    const recipeMinutes = num(input && input.recipeMinutes);
+    const expenses = categories.length === 0 ? [] : expensesInRange(db, from, to).filter(g=> categories.includes(g.categoria || ''));
+    const expensesTotal = expenses.reduce((acc,g)=>acc + num(g.monto), 0);
+    const costPerMinute = productiveMinutes > 0 ? expensesTotal / productiveMinutes : 0;
+    const recipeCost = costPerMinute * recipeMinutes;
+    return {
+      expensesTotal: money(expensesTotal),
+      productiveMinutes: money(productiveMinutes),
+      recipeMinutes: money(recipeMinutes),
+      costPerMinute: money(costPerMinute),
+      recipeCost: money(recipeCost),
+      categories: categories.slice()
+    };
+  }
+  const api = { buildFinancialSummary, buildAccountStatement, buildPayrollExpense, calculateBreakEven, calculateAbcCost };
   if(typeof module !== 'undefined' && module.exports) module.exports = api;
   root.FinanceCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

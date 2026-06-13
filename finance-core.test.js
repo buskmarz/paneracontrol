@@ -5,6 +5,7 @@ const {
   buildAccountStatement,
   buildPayrollExpense,
   calculateBreakEven
+  , calculateAbcCost
 } = require('./finance-core.js');
 
 test('buildFinancialSummary separates sales, collected cash, receivables, payroll and profit', () => {
@@ -58,4 +59,40 @@ test('calculateBreakEven returns required sales and tickets from fixed cost and 
   assert.equal(result.contributionPct, 65);
   assert.equal(result.salesRequired, 46153.85);
   assert.equal(result.ticketsRequired, 154);
+});
+
+test('calculateAbcCost allocates selected expenses by production minutes', () => {
+  const db = {
+    gastos: [
+      { fecha:'2026-05-01', categoria:'Renta', monto:12000 },
+      { fecha:'2026-05-02', categoria:'Nómina', monto:18000 },
+      { fecha:'2026-05-03', categoria:'Servicios', monto:3000 },
+      { fecha:'2026-05-04', categoria:'Ingredientes', monto:9000 }
+    ]
+  };
+  const abc = calculateAbcCost(db, {
+    from:'2026-05-01',
+    to:'2026-05-31',
+    categories:['Renta','Nómina','Servicios'],
+    productiveMinutes:6600,
+    recipeMinutes:45
+  });
+
+  assert.equal(abc.expensesTotal, 33000);
+  assert.equal(abc.costPerMinute, 5);
+  assert.equal(abc.recipeCost, 225);
+});
+
+test('calculateAbcCost returns zero when no expense categories are selected', () => {
+  const db = { gastos: [{ fecha:'2026-05-01', categoria:'Renta', monto:12000 }] };
+  const abc = calculateAbcCost(db, {
+    from:'2026-05-01',
+    to:'2026-05-31',
+    categories:[],
+    productiveMinutes:6000,
+    recipeMinutes:30
+  });
+
+  assert.equal(abc.expensesTotal, 0);
+  assert.equal(abc.recipeCost, 0);
 });

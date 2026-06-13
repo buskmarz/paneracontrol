@@ -20,6 +20,12 @@
     return products.find((product) => product.id === id);
   }
 
+  function appPath(path){
+    const base = window.location.pathname === "/sistema" || window.location.pathname.startsWith("/sistema/") ? "/sistema" : "";
+    const clean = String(path||"").replace(/^\/+/, "");
+    return `${base}/${clean}`;
+  }
+
   function productLine(product){
     return `${product.name} (${Object.entries(product.prices).map(([range, price]) => `${range}: ${price}`).join(", ")})`;
   }
@@ -29,7 +35,7 @@
     if(!grid) return;
     grid.innerHTML = products.map((product) => `
       <article class="product-card">
-        <img src="${product.image}" alt="${product.name}" loading="lazy">
+        <img src="${appPath(product.image)}" alt="${product.name}" loading="lazy">
         <div class="product-body">
           <h2>${product.name}</h2>
           <div class="price-list">
@@ -81,7 +87,7 @@
     }
     if(!list) return;
     if(!selected.length){
-      list.innerHTML = `<p class="empty">Aún no hay productos seleccionados. <a class="mini-link" href="/b2b/catalogo/">Ver catálogo</a></p>`;
+      list.innerHTML = `<p class="empty">Aún no hay productos seleccionados. <a class="mini-link" href="../catalogo/">Ver catálogo</a></p>`;
       return;
     }
     list.innerHTML = selected.map((product) => `
@@ -114,7 +120,7 @@
       status.className = "status";
     }
     try{
-      const response = await fetch("/.netlify/functions/b2b-whatsapp", {
+      const response = await fetch((window.location.pathname.startsWith("/sistema") ? "/sistema" : "") + "/.netlify/functions/b2b-whatsapp", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify(payload)
