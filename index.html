@@ -1101,6 +1101,37 @@
         <button class="btn alt" onclick="exportarCSVGastos()">Exportar CSV</button>
       </div>
       <div class="hr"></div>
+      <h3>Gastos recurrentes</h3>
+      <div class="grid g4">
+        <div><label>Nombre</label><input id="gr-nombre" placeholder="Ej. Renta local"></div>
+        <div><label>Categoría</label><select id="gr-cat"></select></div>
+        <div><label>Método</label><select id="gr-metodo"></select></div>
+        <div><label>Monto</label><input id="gr-monto" type="number" min="0" step="0.01"></div>
+      </div>
+      <div class="grid g4" style="margin-top:8px">
+        <div><label>Proveedor</label><input id="gr-prov" list="dl-proveedores" placeholder="Arrendador, equipo, etc."></div>
+        <div>
+          <label>Frecuencia</label>
+          <select id="gr-frec">
+            <option value="monthly">Mensual</option>
+            <option value="weekly">Semanal</option>
+            <option value="biweekly">Quincenal</option>
+          </select>
+        </div>
+        <div><label>Primer / próximo cargo</label><input id="gr-inicio" type="date"></div>
+        <div><label>Generar hasta</label><input id="gr-hasta" type="date"></div>
+      </div>
+      <label>Descripción base</label><input id="gr-desc" placeholder="Ej. Renta mensual del local">
+      <div class="toolbar" style="margin-top:8px">
+        <button class="btn primary" onclick="guardarGastoRecurrente()">Guardar recurrente</button>
+        <button class="btn ghost" onclick="limpiarGastoRecurrente()">Limpiar</button>
+        <button class="btn alt" onclick="generarGastosRecurrentes()">Generar pendientes</button>
+      </div>
+      <table id="tabla-gastos-recurrentes" style="margin-top:8px">
+        <thead><tr><th>Nombre</th><th>Categoría</th><th>Frecuencia</th><th>Próximo</th><th class="right">Monto</th><th>Acciones</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="hr"></div>
       <div class="grid g3">
         <div><label>Desde</label><input type="date" id="fg-desde" oninput="renderGastos()"></div>
         <div><label>Hasta</label><input type="date" id="fg-hasta" oninput="renderGastos()"></div>
@@ -1498,6 +1529,7 @@ const DB = {
   productos: [],
   ventas: [],
   gastos: [],
+  gastosRecurrentes: [],
   eventos: [],
   costeo: { materiales: [], recetas: [] },
   meta: { updatedAt: null }
@@ -1539,6 +1571,7 @@ function normalizeDB(){
   if(!Array.isArray(DB.productos)) DB.productos = [];
   if(!Array.isArray(DB.ventas)) DB.ventas = [];
   if(!Array.isArray(DB.gastos)) DB.gastos = [];
+  if(!Array.isArray(DB.gastosRecurrentes)) DB.gastosRecurrentes = [];
   if(!Array.isArray(DB.eventos)) DB.eventos = [];
   if(!DB.costeo) DB.costeo = { materiales: [], recetas: [] };
   if(!Array.isArray(DB.costeo.materiales)) DB.costeo.materiales = [];
@@ -1911,6 +1944,8 @@ function initUI(){
   fillSelect("g-metodo", getMetodosGastos());
   fillSelect("nom-metodo", getMetodosGastos());
   fillSelect("g-cat", GASTO_CATS);
+  fillSelect("gr-metodo", getMetodosGastos());
+  fillSelect("gr-cat", GASTO_CATS);
 
   // Filtros de ventas recientes
   fillSelectFiltro("f-canal", CANALES);
@@ -1937,7 +1972,7 @@ function initUI(){
   renderVentasRecientes();
   renderClientes();
   renderTablaProductos();
-  renderGastos();
+  renderGastos(); renderGastosRecurrentes();
   renderDashboard();
   renderB2B();
   renderMateriales(); renderRecetasList(); renderSelectMateriales(); syncMaterialContenidoUnidad(); syncAbcForm();
@@ -1951,6 +1986,8 @@ function initUI(){
 
   // Defaults
   document.getElementById("g-fecha").value = hoyISO();
+  const grInicio = document.getElementById("gr-inicio"); if(grInicio) grInicio.value = hoyISO();
+  const grHasta = document.getElementById("gr-hasta"); if(grHasta) grHasta.value = hoyISO();
   // Footer brand
   const fb = document.getElementById('footer-brand'); if(fb) fb.textContent = DB.config.nombreNegocio || 'Panera Signature';
   // Config UI values
@@ -2242,6 +2279,7 @@ function eliminarCliente(cid){
  *******************************/
 const VENTA = { items:[], pagos:[] };
 let editingGastoId = null;
+let editingRecurrenteId = null;
 let editingVentaId = null;
 
 function addItem(){
@@ -2583,6 +2621,157 @@ function eliminarVenta(ventaId){
 function renderProveedoresDatalist(){
   const dl = document.getElementById("dl-proveedores");
   dl.innerHTML = DB.proveedores.map(p=>`<option value="${p}">`).join("");
+}
+function parseISODate(dateStr){
+  const [y,m,d] = String(dateStr||"").split("-").map(Number);
+  if(!y || !m || !d) return null;
+  return new Date(y, m-1, d);
+}
+function toISODate(date){
+  const pad = n => String(n).padStart(2,"0");
+  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`;
+}
+function addMonthsClamped(date, months){
+  const day = date.getDate();
+  const target = new Date(date.getFullYear(), date.getMonth()+months, 1);
+  const last = new Date(target.getFullYear(), target.getMonth()+1, 0).getDate();
+  target.setDate(Math.min(day, last));
+  return target;
+}
+function addDays(date, days){
+  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  next.setDate(next.getDate()+days);
+  return next;
+}
+function nextRecurrentDate(dateStr, frecuencia){
+  const date = parseISODate(dateStr);
+  if(!date) return hoyISO();
+  if(frecuencia === "weekly") return toISODate(addDays(date, 7));
+  if(frecuencia === "biweekly") return toISODate(addDays(date, 14));
+  return toISODate(addMonthsClamped(date, 1));
+}
+function recurrentFrequencyLabel(frecuencia){
+  if(frecuencia === "weekly") return "Semanal";
+  if(frecuencia === "biweekly") return "Quincenal";
+  return "Mensual";
+}
+function recurrentPeriodKey(rec, fecha){
+  return `${rec.id}:${fecha}`;
+}
+function limpiarGastoRecurrente(){
+  editingRecurrenteId = null;
+  ["gr-nombre","gr-prov","gr-monto","gr-desc"].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=""; });
+  const fi = document.getElementById("gr-inicio"); if(fi) fi.value = hoyISO();
+  const fr = document.getElementById("gr-frec"); if(fr) fr.value = "monthly";
+  renderGastosRecurrentes();
+}
+function guardarGastoRecurrente(){
+  const nombre = (document.getElementById("gr-nombre")?.value || "").trim();
+  const categoria = document.getElementById("gr-cat")?.value || "";
+  const metodo = document.getElementById("gr-metodo")?.value || "";
+  const proveedor = (document.getElementById("gr-prov")?.value || "").trim();
+  const monto = Number(document.getElementById("gr-monto")?.value || 0);
+  const frecuencia = document.getElementById("gr-frec")?.value || "monthly";
+  const inicio = document.getElementById("gr-inicio")?.value || hoyISO();
+  const desc = (document.getElementById("gr-desc")?.value || "").trim();
+  if(!nombre || !categoria || !metodo || monto<=0 || !parseISODate(inicio)){
+    alert("Completa nombre, categoría, método, monto y fecha válida.");
+    return;
+  }
+  const payload = { nombre, categoria, metodo, proveedor, monto, frecuencia, inicio, nextDate: inicio, desc, activo:true };
+  if(editingRecurrenteId){
+    const idx = DB.gastosRecurrentes.findIndex(x=>x.id===editingRecurrenteId);
+    if(idx>-1){
+      const prev = DB.gastosRecurrentes[idx];
+      DB.gastosRecurrentes[idx] = { ...prev, ...payload, nextDate: inicio };
+    }
+    editingRecurrenteId = null;
+    toast("Gasto recurrente actualizado");
+  }else{
+    DB.gastosRecurrentes.push({ id:id_uniq(), ...payload });
+    toast("Gasto recurrente guardado");
+  }
+  if(proveedor && !DB.proveedores.includes(proveedor)){ DB.proveedores.push(proveedor); }
+  saveDB(); renderProveedoresDatalist(); renderGastosRecurrentes();
+  limpiarGastoRecurrente();
+}
+function renderGastosRecurrentes(){
+  const tb = document.querySelector("#tabla-gastos-recurrentes tbody");
+  if(!tb) return;
+  const arr = (DB.gastosRecurrentes||[]).slice().sort((a,b)=>(a.nextDate||a.inicio||"").localeCompare(b.nextDate||b.inicio||""));
+  tb.innerHTML = arr.map(r=>`<tr>
+    <td>${r.nombre||""}${r.activo===false ? ' <span class="muted">(pausado)</span>' : ''}</td>
+    <td>${r.categoria||""}</td>
+    <td>${recurrentFrequencyLabel(r.frecuencia)}</td>
+    <td>${r.nextDate || r.inicio || ""}</td>
+    <td class="right">${fmt(r.monto)}</td>
+    <td>
+      <button class="btn alt" onclick="editarGastoRecurrente('${r.id}')">Editar</button>
+      <button class="btn primary" onclick="generarGastosRecurrentes('${r.id}')">Generar</button>
+      <button class="btn ghost" onclick="pausarGastoRecurrente('${r.id}')">${r.activo===false ? "Activar" : "Pausar"}</button>
+      <button class="btn ghost" onclick="eliminarGastoRecurrente('${r.id}')">Eliminar</button>
+    </td>
+  </tr>`).join("") || `<tr><td colspan="6" class="muted">Sin gastos recurrentes</td></tr>`;
+}
+function editarGastoRecurrente(id){
+  const r = DB.gastosRecurrentes.find(x=>x.id===id);
+  if(!r) return;
+  editingRecurrenteId = r.id;
+  document.getElementById("gr-nombre").value = r.nombre || "";
+  document.getElementById("gr-cat").value = r.categoria || "";
+  document.getElementById("gr-metodo").value = r.metodo || "";
+  document.getElementById("gr-prov").value = r.proveedor || "";
+  document.getElementById("gr-monto").value = r.monto || "";
+  document.getElementById("gr-frec").value = r.frecuencia || "monthly";
+  document.getElementById("gr-inicio").value = r.nextDate || r.inicio || hoyISO();
+  document.getElementById("gr-desc").value = r.desc || "";
+}
+function pausarGastoRecurrente(id){
+  const r = DB.gastosRecurrentes.find(x=>x.id===id);
+  if(!r) return;
+  r.activo = r.activo===false;
+  saveDB(); renderGastosRecurrentes();
+}
+function eliminarGastoRecurrente(id){
+  const r = DB.gastosRecurrentes.find(x=>x.id===id);
+  if(!r) return;
+  if(!confirm(`¿Eliminar el recurrente "${r.nombre}"? No elimina gastos ya generados.`)) return;
+  DB.gastosRecurrentes = DB.gastosRecurrentes.filter(x=>x.id!==id);
+  saveDB(); renderGastosRecurrentes();
+}
+function generarGastosRecurrentes(onlyId){
+  const hasta = document.getElementById("gr-hasta")?.value || hoyISO();
+  if(!parseISODate(hasta)){ alert("Selecciona una fecha válida en Generar hasta."); return; }
+  let creados = 0;
+  (DB.gastosRecurrentes||[]).forEach(rec=>{
+    if(onlyId && rec.id!==onlyId) return;
+    if(rec.activo===false) return;
+    let fecha = rec.nextDate || rec.inicio || hoyISO();
+    let guard = 0;
+    while(fecha && fecha <= hasta && guard < 260){
+      const key = recurrentPeriodKey(rec, fecha);
+      const exists = DB.gastos.some(g=>g.recurrenteKey===key);
+      if(!exists){
+        DB.gastos.push({
+          id:id_uniq(),
+          fecha,
+          categoria:rec.categoria,
+          proveedor:rec.proveedor || "",
+          metodo:rec.metodo,
+          monto:Number(rec.monto||0),
+          desc: rec.desc || rec.nombre || "Gasto recurrente",
+          recurrenteId: rec.id,
+          recurrenteKey: key
+        });
+        creados++;
+      }
+      fecha = nextRecurrentDate(fecha, rec.frecuencia);
+      guard++;
+    }
+    rec.nextDate = fecha || rec.nextDate || rec.inicio;
+  });
+  saveDB(); renderGastos(); renderGastosRecurrentes(); renderDashboard(); renderFinanzas(); syncAbcForm(); recalcReceta();
+  toast(creados ? `${creados} gasto(s) recurrente(s) generado(s)` : "No había recurrentes pendientes");
 }
 function guardarGasto(){
   const fecha = document.getElementById("g-fecha").value || hoyISO();
@@ -2964,7 +3153,7 @@ function importarJSON(){
     const reader = new FileReader();
     reader.onload = () => { try{
       const data = JSON.parse(reader.result);
-      ["config","clientes","proveedores","productos","ventas","gastos","eventos","costeo"].forEach(k=>{ if(data[k]!==undefined) DB[k]=data[k]; });
+      ["config","clientes","proveedores","productos","ventas","gastos","gastosRecurrentes","eventos","costeo"].forEach(k=>{ if(data[k]!==undefined) DB[k]=data[k]; });
       saveDB(); initUI(); toast("Backup restaurado");
     }catch(e){ alert("JSON inválido"); } };
     reader.readAsText(f);
