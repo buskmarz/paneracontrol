@@ -1031,10 +1031,14 @@
       <section class="card" style="margin-top:8px">
         <h3>Gastos ABC por tiempo</h3>
         <div class="grid g4">
-          <div><label>Desde</label><input id="ct-abc-desde" type="date" oninput="recalcReceta()"></div>
-          <div><label>Hasta</label><input id="ct-abc-hasta" type="date" oninput="recalcReceta()"></div>
-          <div><label>Minutos productivos del periodo</label><input id="ct-abc-min-prod" type="number" min="0" step="1" placeholder="Ej. 6600" oninput="recalcReceta()"></div>
+          <div><label>Desde</label><input id="ct-abc-desde" type="date" oninput="updateAbcProductiveMinutes(); recalcReceta()"></div>
+          <div><label>Hasta</label><input id="ct-abc-hasta" type="date" oninput="updateAbcProductiveMinutes(); recalcReceta()"></div>
+          <div><label>Minutos productivos del periodo</label><input id="ct-abc-min-prod" type="number" min="0" step="1" placeholder="Auto L-S 07:30-13:30" oninput="recalcReceta()"></div>
           <div><label>Minutos de esta receta</label><input id="ct-abc-min-receta" type="number" min="0" step="0.01" placeholder="Ej. 45" oninput="recalcReceta()"></div>
+        </div>
+        <div class="toolbar" style="margin-top:8px">
+          <button class="btn ghost" onclick="updateAbcProductiveMinutes(); recalcReceta()">Calcular minutos por horario</button>
+          <span class="muted">Horario usado: lunes a sábado, 07:30-13:30 (360 min por día).</span>
         </div>
         <div style="margin-top:8px">
           <label>Categorías de gastos a repartir</label>
@@ -3947,19 +3951,50 @@ function ensureIndirectos(receta){
 function defaultAbcConfig(){
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const from = ymd(start);
+  const to = hoyISO();
   return {
     enabled: true,
-    from: ymd(start),
-    to: hoyISO(),
+    from,
+    to,
     categories: ['Nómina','Renta','Servicios','Mantenimiento','Varios'],
-    productiveMinutes: 6600,
+    productiveMinutes: calculateAbcProductiveMinutes(from, to),
     recipeMinutes: 0
   };
+}
+function calculateAbcProductiveMinutes(from, to){
+  const start = parseISODate(from);
+  const end = parseISODate(to);
+  if(!start || !end || start > end) return 0;
+  let days = 0;
+  const curr = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const limit = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  while(curr <= limit){
+    const dow = curr.getDay();
+    if(dow >= 1 && dow <= 6) days++;
+    curr.setDate(curr.getDate()+1);
+  }
+  return days * 6 * 60;
+}
+function updateAbcProductiveMinutes(){
+  const from = document.getElementById('ct-abc-desde')?.value || defaultAbcConfig().from;
+  const to = document.getElementById('ct-abc-hasta')?.value || defaultAbcConfig().to;
+  const minutes = calculateAbcProductiveMinutes(from, to);
+  const el = document.getElementById('ct-abc-min-prod');
+  if(el) el.value = minutes || '';
+  if(CT.receta){
+    ensureAbc(CT.receta);
+    CT.receta.abc.productiveMinutes = minutes;
+  }
+  return minutes;
 }
 function ensureAbc(receta){
   if(!receta) return;
   if(!receta.abc || typeof receta.abc !== 'object') receta.abc = defaultAbcConfig();
   if(!Array.isArray(receta.abc.categories)) receta.abc.categories = defaultAbcConfig().categories;
+  if(!Number(receta.abc.productiveMinutes)){
+    receta.abc.productiveMinutes = calculateAbcProductiveMinutes(receta.abc.from || defaultAbcConfig().from, receta.abc.to || defaultAbcConfig().to);
+  }
 }
 function resetCostoIndirectoForm(){
   const conc = document.getElementById('ct-ci-conc'); if(conc) conc.value = '';
@@ -4013,7 +4048,7 @@ function readAbcForm(){
     from: document.getElementById('ct-abc-desde')?.value || defaultAbcConfig().from,
     to: document.getElementById('ct-abc-hasta')?.value || defaultAbcConfig().to,
     categories: cats,
-    productiveMinutes: Number(document.getElementById('ct-abc-min-prod')?.value || 0),
+    productiveMinutes: Number(document.getElementById('ct-abc-min-prod')?.value || calculateAbcProductiveMinutes(document.getElementById('ct-abc-desde')?.value || defaultAbcConfig().from, document.getElementById('ct-abc-hasta')?.value || defaultAbcConfig().to)),
     recipeMinutes: Number(document.getElementById('ct-abc-min-receta')?.value || 0)
   };
   return CT.receta.abc;
@@ -4024,7 +4059,9 @@ function syncAbcForm(){
   const setVal = (id,v)=>{ const el=document.getElementById(id); if(el) el.value = v ?? ''; };
   setVal('ct-abc-desde', abc.from || defaultAbcConfig().from);
   setVal('ct-abc-hasta', abc.to || defaultAbcConfig().to);
-  setVal('ct-abc-min-prod', abc.productiveMinutes || '');
+  const productiveMinutes = abc.productiveMinutes || calculateAbcProductiveMinutes(abc.from || defaultAbcConfig().from, abc.to || defaultAbcConfig().to);
+  abc.productiveMinutes = productiveMinutes;
+  setVal('ct-abc-min-prod', productiveMinutes || '');
   setVal('ct-abc-min-receta', abc.recipeMinutes || '');
   renderAbcCats();
 }
