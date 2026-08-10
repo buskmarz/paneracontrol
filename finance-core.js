@@ -32,7 +32,7 @@
     const expensesTotal = gastos.reduce((acc,g)=>acc + num(g.monto), 0);
     const payrollTotal = gastos.filter(g=>(g.categoria||'') === 'Nómina').reduce((acc,g)=>acc + num(g.monto), 0);
     const variableCosts = gastos
-      .filter(g=>['Materia prima','Empaque','Comisiones','Envíos'].includes(g.categoria || ''))
+      .filter(g=>['Materia prima','Ingredientes','Empaque','Empaques','Comisiones','Envíos','Transporte'].includes(g.categoria || ''))
       .reduce((acc,g)=>acc + num(g.monto), 0);
     const fixedCosts = Math.max(0, expensesTotal - variableCosts);
     const grossProfit = salesTotal - variableCosts;
@@ -108,7 +108,28 @@
     const contributionRatio = contributionPct / 100;
     const salesRequired = contributionRatio > 0 ? money(fixedCosts / contributionRatio) : 0;
     const ticketsRequired = avgTicket > 0 ? Math.ceil(salesRequired / avgTicket) : 0;
-    return { fixedCosts: money(fixedCosts), variableCostPct: money(variableCostPct), contributionPct, salesRequired, ticketsRequired };
+    const productiveDays = Math.max(0, num(input && input.productiveDays));
+    const productiveDaysPerWeek = Math.max(0, num(input && input.productiveDaysPerWeek)) || 6;
+    const weeksPerMonth = Math.max(0, num(input && input.weeksPerMonth)) || (52 / 12);
+    const dailySalesRequired = productiveDays > 0 ? money(salesRequired / productiveDays) : 0;
+    const weeklySalesRequired = money(dailySalesRequired * productiveDaysPerWeek);
+    const monthlySalesRequired = money(weeklySalesRequired * weeksPerMonth);
+    return {
+      fixedCosts: money(fixedCosts),
+      variableCostPct: money(variableCostPct),
+      contributionPct,
+      salesRequired,
+      ticketsRequired,
+      productiveDays,
+      productiveDaysPerWeek,
+      weeksPerMonth,
+      dailySalesRequired,
+      weeklySalesRequired,
+      monthlySalesRequired,
+      dailyTicketsRequired: avgTicket > 0 ? Math.ceil(dailySalesRequired / avgTicket) : 0,
+      weeklyTicketsRequired: avgTicket > 0 ? Math.ceil(weeklySalesRequired / avgTicket) : 0,
+      monthlyTicketsRequired: avgTicket > 0 ? Math.ceil(monthlySalesRequired / avgTicket) : 0
+    };
   }
   function calculateAbcCost(db, input){
     const from = input && input.from;

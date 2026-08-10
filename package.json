@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "description": "Panera control de ventas",
+  "scripts": {
+    "test": "node --test finance-core.test.js"
+  },
   "engines": {
     "node": ">=18"
   },

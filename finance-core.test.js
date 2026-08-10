@@ -54,11 +54,14 @@ test('buildPayrollExpense creates a payroll expense with useful description', ()
 });
 
 test('calculateBreakEven returns required sales and tickets from fixed cost and margin', () => {
-  const result = calculateBreakEven({ fixedCosts:30000, variableCostPct:35, avgTicket:300 });
+  const result = calculateBreakEven({ fixedCosts:30000, variableCostPct:35, avgTicket:300, productiveDays:26, productiveDaysPerWeek:6 });
 
   assert.equal(result.contributionPct, 65);
   assert.equal(result.salesRequired, 46153.85);
   assert.equal(result.ticketsRequired, 154);
+  assert.equal(result.dailySalesRequired, 1775.15);
+  assert.equal(result.weeklySalesRequired, 10650.9);
+  assert.equal(result.dailyTicketsRequired, 6);
 });
 
 test('calculateAbcCost allocates selected expenses by production minutes', () => {
