@@ -4,7 +4,7 @@
   "private": true,
   "description": "Panera control de ventas",
   "scripts": {
-    "test": "node --test finance-core.test.js netlify/functions/auth.test.js"
+    "test": "node --test finance-core.test.js auth.test.js"
   },
   "engines": {
     "node": ">=18"

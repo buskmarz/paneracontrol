@@ -6,7 +6,7 @@ const {
   sessionCookie,
   signSession,
   verifySession
-} = require("./lib/session-auth");
+} = require("./netlify/functions/lib/session-auth");
 
 const env = { PANERA_AUTH:"usuario:secreto", PANERA_SESSION_SECRET:"test-session-secret" };
 
