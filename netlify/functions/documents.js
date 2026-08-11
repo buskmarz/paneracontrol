@@ -1,4 +1,3 @@
-const { getStore } = require("@netlify/blobs");
 const { randomUUID } = require("node:crypto");
 const { isAuthorized } = require("./lib/session-auth");
 
@@ -11,7 +10,8 @@ function storeConfig(){
   const token = (process.env.NETLIFY_BLOBS_TOKEN || process.env.NETLIFY_ACCESS_TOKEN || process.env.NETLIFY_AUTH_TOKEN || process.env.NETLIFY_PERSONAL_ACCESS_TOKEN || process.env.PERSONAL_ACCESS_TOKEN || process.env.PANERA_BLOBS_TOKEN_2026 || "").trim();
   return siteID && token ? { siteID, token } : null;
 }
-function openStore(){
+async function openStore(){
+  const { getStore } = await import("@netlify/blobs");
   if(process.env.NETLIFY_BLOBS_URL && process.env.NETLIFY_BLOBS_TOKEN) return getStore(STORE_NAME);
   const cfg = storeConfig();
   return cfg ? getStore({ name:STORE_NAME, ...cfg }) : null;
@@ -35,7 +35,7 @@ function safeName(name){ return String(name || "documento").replace(/[^a-zA-Z0-9
 exports.handler = async (event) => {
   if(!isAuthorized(event)) return json(401, {ok:false,error:"unauthorized"});
   let store;
-  try{ store = openStore(); }catch(e){ return json(503,{ok:false,error:"blobs_not_configured"}); }
+  try{ store = await openStore(); }catch(e){ return json(503,{ok:false,error:"blobs_not_configured"}); }
   if(!store) return json(503,{ok:false,error:"blobs_not_configured"});
 
   try{

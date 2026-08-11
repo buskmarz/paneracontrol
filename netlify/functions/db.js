@@ -1,4 +1,3 @@
-const { getStore } = require("@netlify/blobs");
 const { isAuthorized } = require("./lib/session-auth");
 
 const STORE_NAME = "panera-db";
@@ -29,7 +28,8 @@ function getStoreConfig(){
   if(siteID && token) return { siteID, token };
   return null;
 }
-function openStore(){
+async function openStore(){
+  const { getStore } = await import("@netlify/blobs");
   const hasInjected = !!(process.env.NETLIFY_BLOBS_URL && process.env.NETLIFY_BLOBS_TOKEN);
   if(hasInjected) return getStore(STORE_NAME);
   const cfg = getStoreConfig();
@@ -52,7 +52,7 @@ exports.handler = async (event) => {
 
   let store = null;
   try{
-    store = openStore();
+    store = await openStore();
   }catch(e){
     return jsonResponse(503, { ok:false, error:"blobs_not_configured", hint:"Enable Netlify Blobs or set PANERA_BLOBS_SITE_ID/PANERA_BLOBS_TOKEN_2026." });
   }
