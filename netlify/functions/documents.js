@@ -1,5 +1,6 @@
 const { getStore } = require("@netlify/blobs");
 const { randomUUID } = require("node:crypto");
+const { isAuthorized } = require("./lib/session-auth");
 
 const STORE_NAME = "panera-documents";
 const INDEX_KEY = "__index__";
@@ -13,18 +14,10 @@ function storeConfig(){
 function openStore(){
   if(process.env.NETLIFY_BLOBS_URL && process.env.NETLIFY_BLOBS_TOKEN) return getStore(STORE_NAME);
   const cfg = storeConfig();
-  return cfg ? getStore(STORE_NAME, cfg) : null;
-}
-function authorized(event){
-  const expected = process.env.PANERA_AUTH;
-  if(!expected) return true;
-  const headers = event.headers || {};
-  const raw = (headers.authorization || headers.Authorization || headers["x-panera-auth"] || headers["X-Panera-Auth"] || "").replace(/^Basic\s+/i, "").trim();
-  if(raw === expected) return true;
-  try{ return Buffer.from(raw, "base64").toString("utf8") === expected; }catch(e){ return false; }
+  return cfg ? getStore({ name:STORE_NAME, ...cfg }) : null;
 }
 function json(statusCode, payload, extraHeaders={}){
-  return { statusCode, headers:{"Content-Type":"application/json","Cache-Control":"no-store",...extraHeaders}, body:JSON.stringify(payload) };
+  return { statusCode, headers:{"Content-Type":"application/json","Cache-Control":"no-store","X-Content-Type-Options":"nosniff",...extraHeaders}, body:JSON.stringify(payload) };
 }
 function parseBody(event){
   try{ return event.body ? JSON.parse(event.body) : null; }catch(e){ return null; }
@@ -40,7 +33,7 @@ async function writeIndex(store, docs){
 function safeName(name){ return String(name || "documento").replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0,120); }
 
 exports.handler = async (event) => {
-  if(!authorized(event)) return json(401, {ok:false,error:"unauthorized"});
+  if(!isAuthorized(event)) return json(401, {ok:false,error:"unauthorized"});
   let store;
   try{ store = openStore(); }catch(e){ return json(503,{ok:false,error:"blobs_not_configured"}); }
   if(!store) return json(503,{ok:false,error:"blobs_not_configured"});

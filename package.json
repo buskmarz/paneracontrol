@@ -4,12 +4,12 @@
   "private": true,
   "description": "Panera control de ventas",
   "scripts": {
-    "test": "node --test finance-core.test.js"
+    "test": "node --test finance-core.test.js netlify/functions/auth.test.js"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
-    "@netlify/blobs": "latest"
+    "@netlify/blobs": "9.1.5"
   }
 }

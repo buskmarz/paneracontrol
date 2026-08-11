@@ -41,7 +41,7 @@ function themeCharts(){
   const grid = cssVar('--p-light') || '#e5e7eb';
   Chart.defaults.color = ink;
   Chart.defaults.borderColor = grid;
-  Chart.defaults.font = { family:'Montserrat,system-ui,Segoe UI,Roboto,Helvetica,Arial' };
+  Chart.defaults.font = { family:'-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif' };
 }
 function updateThemeToggleIcon(){
   const isDark = (document.documentElement.getAttribute('data-theme')||'')==='dark';
@@ -83,16 +83,49 @@ function refreshChartsForTheme(){
   });
 }
 
-/*******************************
- * AUTH (LOGIN SIMPLE)
- *******************************/
-const AUTH_USER = "panera";
-const AUTH_PASS = "panque";
-const AUTH_KEY = "panera.auth.v1";
-const AUTH_BASIC = btoa(`${AUTH_USER}:${AUTH_PASS}`);
+const CHART_JS_PATH = "/vendor/chart.umd.js";
+let chartLibraryPromise = null;
+function ensureChartLibrary(){
+  if(typeof Chart !== "undefined") return Promise.resolve(Chart);
+  if(chartLibraryPromise) return chartLibraryPromise;
+  chartLibraryPromise = new Promise((resolve, reject)=>{
+    const script = document.createElement("script");
+    script.src = appPath(CHART_JS_PATH);
+    script.async = true;
+    script.onload = ()=>{
+      themeCharts();
+      resolve(window.Chart);
+    };
+    script.onerror = ()=>reject(new Error("chart_library_unavailable"));
+    document.head.appendChild(script);
+  });
+  return chartLibraryPromise;
+}
+function scheduleChartLibrary(){
+  const load = ()=>ensureChartLibrary().then(()=>{
+    renderDashboard();
+    renderFinanzas();
+    recalcReceta();
+  }).catch(()=>{});
+  if("requestIdleCallback" in window){
+    window.requestIdleCallback(load, { timeout:1200 });
+  }else{
+    setTimeout(load, 80);
+  }
+}
 
-function isAuthed(){ return localStorage.getItem(AUTH_KEY) === "ok"; }
-function setAuth(ok){ if(ok){ localStorage.setItem(AUTH_KEY, "ok"); } else { localStorage.removeItem(AUTH_KEY); } }
+/*******************************
+ * AUTH (SESION SEGURA)
+ *******************************/
+let AUTHENTICATED = false;
+let authenticatedStartPromise = null;
+
+function isLocalPreview(){
+  return location.hostname === "localhost" || location.hostname === "127.0.0.1";
+}
+function authEndpoint(){ return appPath("/.netlify/functions/auth"); }
+function isAuthed(){ return AUTHENTICATED; }
+function setAuth(ok){ AUTHENTICATED = Boolean(ok); }
 function updateAuthUI(){
   const btn = document.getElementById("logout-btn");
   if(btn) btn.classList.toggle("hidden", !isAuthed());
@@ -110,39 +143,91 @@ function hideAuth(){
   document.body.classList.remove("auth-locked");
   updateAuthUI();
 }
-function handleLogin(e){
+async function handleLogin(e){
   e.preventDefault();
   const u = (document.getElementById("auth-user")?.value || "").trim();
-  const p = (document.getElementById("auth-pass")?.value || "").trim();
+  const p = document.getElementById("auth-pass")?.value || "";
   const err = document.getElementById("auth-error");
-  if(u === AUTH_USER && p === AUTH_PASS){
+  const submit = e.currentTarget?.querySelector('button[type="submit"]');
+  if(!u || !p){ if(err) err.textContent = "Captura usuario y contrasena."; return; }
+  if(submit) submit.disabled = true;
+  if(err) err.textContent = "Verificando acceso...";
+  try{
+    if(!isLocalPreview()){
+      const response = await fetchWithTimeout(authEndpoint(), {
+        method:"POST",
+        credentials:"same-origin",
+        headers:{ "Content-Type":"application/json", Accept:"application/json" },
+        body:JSON.stringify({ username:u, password:p })
+      });
+      if(!response.ok){
+        if(err) err.textContent = response.status === 401 ? "Usuario o contrasena incorrecta." : "No se pudo validar el acceso.";
+        return;
+      }
+    }else{
+      sessionStorage.setItem("panera.preview.auth", "ok");
+    }
     setAuth(true);
     if(err) err.textContent = "";
+    const pass = document.getElementById("auth-pass"); if(pass) pass.value = "";
     hideAuth();
-  }else{
-    if(err) err.textContent = "Usuario o contrasena incorrecta.";
+    await startAuthenticatedApp();
+  }catch(error){
+    if(err) err.textContent = "No se pudo conectar. Revisa internet e intenta de nuevo.";
+  }finally{
+    if(submit) submit.disabled = false;
   }
 }
-function logout(){
+async function logout(){
   setAuth(false);
+  authenticatedStartPromise = null;
+  closeQuickCapture();
+  try{ sessionStorage.removeItem("panera.preview.auth"); }catch(error){}
+  if(!isLocalPreview()){
+    fetch(authEndpoint(), { method:"DELETE", credentials:"same-origin", keepalive:true }).catch(()=>{});
+  }
   const p = document.getElementById("auth-pass");
   if(p) p.value = "";
   showAuth();
 }
-function initAuth(){
-  document.getElementById("auth-form")?.addEventListener("submit", handleLogin);
+function handleSessionExpired(){
+  if(!isAuthed()) return;
+  setAuth(false);
+  authenticatedStartPromise = null;
+  closeQuickCapture();
+  showAuth();
+  toast("Tu sesion vencio. Ingresa nuevamente.", "warn");
+}
+async function initAuth(){
+  try{ localStorage.removeItem("panera.auth.v1"); }catch(error){}
+  const form = document.getElementById("auth-form");
+  if(form && !form.dataset.initialized){
+    form.dataset.initialized = "true";
+    form.addEventListener("submit", handleLogin);
+  }
   const err = document.getElementById("auth-error");
   document.getElementById("auth-user")?.addEventListener("input", ()=>{ if(err) err.textContent = ""; });
   document.getElementById("auth-pass")?.addEventListener("input", ()=>{ if(err) err.textContent = ""; });
-  if(isAuthed()) hideAuth(); else showAuth();
-}
-function authHeaders(){
-  return { Authorization: `Basic ${AUTH_BASIC}`, "X-Panera-Auth": AUTH_BASIC };
+  if(isLocalPreview() && sessionStorage.getItem("panera.preview.auth") === "ok"){
+    setAuth(true);
+    hideAuth();
+    return true;
+  }
+  if(!isLocalPreview()){
+    try{
+      const response = await fetchWithTimeout(authEndpoint(), { credentials:"same-origin", headers:{ Accept:"application/json" }, cache:"no-store" });
+      if(response.ok){ setAuth(true); hideAuth(); return true; }
+    }catch(error){}
+  }
+  setAuth(false);
+  showAuth();
+  return false;
 }
 function fillSelectFiltro(id_, arr, labelAll="(todos)"){
   const s = document.getElementById(id_);
   if(!s) return;
-  s.innerHTML = `<option value="">${labelAll}</option>` + (arr||[]).map(x=>`<option>${x}</option>`).join("");
+  s.replaceChildren(new Option(labelAll, ""));
+  (arr||[]).forEach(value=>s.add(new Option(String(value), String(value))));
 }
 
 function getMetodosVentas(){ return (DB.config && Array.isArray(DB.config.metodosVentas) ? DB.config.metodosVentas : METODOS_DEFAULT_VENTAS).slice(); }
@@ -312,6 +397,7 @@ function saveDB(opts={}){
     DB.meta.updatedAt = new Date().toISOString();
   }
   localStorage.setItem("panera.db.v1", JSON.stringify(DB));
+  setSyncStatus(opts.skipRemote ? "saved" : "saving");
   if(!opts.skipRemote) scheduleRemoteSave();
 }
 
@@ -337,6 +423,7 @@ const DOCUMENTS_ENDPOINT = appPath("/.netlify/functions/documents");
 function remoteWarn(msg){
   if(REMOTE.errorShown) return;
   REMOTE.errorShown = true;
+  setSyncStatus("local");
   toast(msg, "warn");
 }
 function parseTime(val){
@@ -354,9 +441,9 @@ async function fetchWithTimeout(url, options={}, timeoutMs=REMOTE.timeoutMs){
 }
 async function fetchRemoteDB(){
   try{
-    const res = await fetchWithTimeout(REMOTE.endpoint, { headers: { "Accept":"application/json", ...authHeaders() }, cache:"no-store" });
+    const res = await fetchWithTimeout(REMOTE.endpoint, { credentials:"same-origin", headers:{ "Accept":"application/json" }, cache:"no-store" });
     if(res.status === 401){
-      remoteWarn("Autenticacion fallida en backend. Revisa PANERA_AUTH.");
+      handleSessionExpired();
       return null;
     }
     if(res.status === 503){
@@ -377,16 +464,18 @@ async function fetchRemoteDB(){
   }
 }
 async function pushRemoteDB(){
+  if(!isAuthed()) return false;
   if(REMOTE.saving){ REMOTE.pending = true; return false; }
   REMOTE.saving = true;
   try{
     const res = await fetchWithTimeout(REMOTE.endpoint, {
       method: "POST",
-      headers: { "Content-Type":"application/json", ...authHeaders() },
+      credentials:"same-origin",
+      headers: { "Content-Type":"application/json" },
       body: JSON.stringify({ db: DB })
     });
     if(res.status === 401){
-      remoteWarn("Autenticacion fallida en backend. Revisa PANERA_AUTH.");
+      handleSessionExpired();
       return false;
     }
     if(res.status === 503){
@@ -399,8 +488,10 @@ async function pushRemoteDB(){
       return false;
     }
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    setSyncStatus("saved");
     return true;
   }catch(e){
+    setSyncStatus("local");
     remoteWarn("No se pudo guardar en backend. Se quedo en local.");
     return false;
   }finally{
@@ -410,6 +501,7 @@ async function pushRemoteDB(){
 }
 function scheduleRemoteSave(){
   if(REMOTE.saveTimer) clearTimeout(REMOTE.saveTimer);
+  if(!isAuthed()) return;
   REMOTE.saveTimer = setTimeout(pushRemoteDB, REMOTE.saveDelay);
 }
 function applyRemote(remote){
@@ -420,12 +512,14 @@ function applyRemote(remote){
   saveDB({ skipRemote: true, skipMeta: true });
 }
 async function syncRemoteDB(){
+  setSyncStatus("saving");
   const remote = await fetchRemoteDB();
-  if(!remote){ scheduleRemoteSave(); return false; }
+  if(!remote){ if(isAuthed()) scheduleRemoteSave(); return false; }
   const localAt = parseTime(DB.meta && DB.meta.updatedAt);
   const remoteAt = parseTime(remote.meta && remote.meta.updatedAt);
-  if(remoteAt && (!localAt || remoteAt > localAt)){ applyRemote(remote); return true; }
+  if(remoteAt && (!localAt || remoteAt > localAt)){ applyRemote(remote); setSyncStatus("saved"); return true; }
   if(localAt && (!remoteAt || localAt > remoteAt)){ scheduleRemoteSave(); }
+  else setSyncStatus("saved");
   return false;
 }
 
@@ -440,8 +534,18 @@ const nowLocalDateTime = ()=>{ const dt = new Date(); return `${dt.getFullYear()
 const fmtLocal = (d)=>{ try{ const dt=new Date(d); return `${dt.getFullYear()}-${pad2(dt.getMonth()+1)}-${pad2(dt.getDate())} ${pad2(dt.getHours())}:${pad2(dt.getMinutes())}`; }catch(e){ return String(d).replace('T',' ').slice(0,16); } };
 const id = () => Math.random().toString(36).slice(2,10);
 const sum = (arr,sel) => arr.reduce((a,x)=>a+(sel?sel(x):x),0);
+function setSyncStatus(state="saved"){
+  const el = document.getElementById("sync-status");
+  if(!el) return;
+  const labels = { saved:"Guardado", saving:"Guardando", local:"Sólo local" };
+  el.dataset.state = state;
+  el.textContent = labels[state] || labels.saved;
+}
 function escapeHtml(value){
   return String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+}
+function dataAttr(value){
+  return escapeHtml(encodeURIComponent(String(value ?? "")));
 }
 function formatBytes(bytes){
   const size = Number(bytes || 0);
@@ -505,15 +609,16 @@ function renderDocuments(documents){
     <td>${escapeHtml(doc.reference || '—')}</td>
     <td>${escapeHtml(doc.fileName || '—')} <span class="muted">(${formatBytes(doc.size)})</span></td>
     <td>
-      <button class="btn alt sm" onclick="downloadDocument('${escapeHtml(doc.id)}')">Descargar</button>
-      <button class="btn ghost sm" onclick="deleteDocument('${escapeHtml(doc.id)}')">Eliminar</button>
+      <button class="btn alt sm" data-id="${dataAttr(doc.id)}" onclick="downloadDocument(decodeURIComponent(this.dataset.id))">Descargar</button>
+      <button class="btn ghost sm" data-id="${dataAttr(doc.id)}" onclick="deleteDocument(decodeURIComponent(this.dataset.id))">Eliminar</button>
     </td>
   </tr>`).join('');
   tb.innerHTML = rows || '<tr><td colspan="6" class="muted">No hay documentos cargados.</td></tr>';
 }
 async function listDocuments(){
   try{
-    const response = await fetchWithTimeout(DOCUMENTS_ENDPOINT, { headers:{ Accept:'application/json', ...authHeaders() }, cache:'no-store' });
+    const response = await fetchWithTimeout(DOCUMENTS_ENDPOINT, { credentials:'same-origin', headers:{ Accept:'application/json' }, cache:'no-store' });
+    if(response.status === 401){ handleSessionExpired(); return; }
     const data = await response.json().catch(()=>null);
     if(!response.ok) throw new Error(data?.error || `HTTP ${response.status}`);
     renderDocuments(data?.documents || []);
@@ -536,9 +641,11 @@ async function uploadDocument(){
     const contentBase64 = arrayBufferToBase64(await file.arrayBuffer());
     const response = await fetchWithTimeout(DOCUMENTS_ENDPOINT, {
       method:'POST',
-      headers:{ 'Content-Type':'application/json', ...authHeaders() },
+      credentials:'same-origin',
+      headers:{ 'Content-Type':'application/json' },
       body:JSON.stringify({ action:'upload', fileName:file.name, contentType:file.type || 'application/octet-stream', contentBase64, title, date, category, reference })
     });
+    if(response.status === 401){ handleSessionExpired(); return; }
     const data = await response.json().catch(()=>null);
     if(!response.ok) throw new Error(data?.error || `HTTP ${response.status}`);
     clearDocumentForm();
@@ -553,7 +660,8 @@ async function downloadDocument(docId){
   if(!docId) return;
   setDocumentsStatus('Preparando descarga...', 'muted');
   try{
-    const response = await fetchWithTimeout(`${DOCUMENTS_ENDPOINT}?id=${encodeURIComponent(docId)}`, { headers:authHeaders(), cache:'no-store' });
+    const response = await fetchWithTimeout(`${DOCUMENTS_ENDPOINT}?id=${encodeURIComponent(docId)}`, { credentials:'same-origin', cache:'no-store' });
+    if(response.status === 401){ handleSessionExpired(); return; }
     if(!response.ok) throw new Error(`HTTP ${response.status}`);
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
@@ -565,7 +673,8 @@ async function downloadDocument(docId){
 async function deleteDocument(docId){
   if(!docId || !confirm('¿Eliminar este documento privado?')) return;
   try{
-    const response = await fetchWithTimeout(DOCUMENTS_ENDPOINT, { method:'DELETE', headers:{ 'Content-Type':'application/json', ...authHeaders() }, body:JSON.stringify({id:docId}) });
+    const response = await fetchWithTimeout(DOCUMENTS_ENDPOINT, { method:'DELETE', credentials:'same-origin', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({id:docId}) });
+    if(response.status === 401){ handleSessionExpired(); return; }
     if(!response.ok) throw new Error(`HTTP ${response.status}`);
     await listDocuments();
     toast('Documento eliminado');
@@ -601,15 +710,15 @@ function renderB2B(){
   if(grid){
     grid.innerHTML = products.map(product => `
       <article class="b2b-product">
-        <img src="${b2bAssetPath(product.image)}" alt="${product.name}" loading="lazy">
+        <img src="${escapeHtml(b2bAssetPath(product.image))}" alt="${escapeHtml(product.name)}" loading="lazy">
         <div class="b2b-product-body">
-          <h3>${product.name}</h3>
+          <h3>${escapeHtml(product.name)}</h3>
           <div class="b2b-prices">
             ${Object.entries(product.prices || {}).map(([range, price]) => `
-              <div class="b2b-price-row"><span>${range}</span><strong>${price}</strong></div>
+              <div class="b2b-price-row"><span>${escapeHtml(range)}</span><strong>${escapeHtml(price)}</strong></div>
             `).join("")}
           </div>
-          <button class="btn primary" type="button" onclick="addB2BProduct('${product.id}')">Agregar pedido</button>
+          <button class="btn primary" type="button" data-id="${dataAttr(product.id)}" onclick="addB2BProduct(decodeURIComponent(this.dataset.id))">Agregar pedido</button>
         </div>
       </article>
     `).join("") || `<p class="muted">No hay productos B2B configurados.</p>`;
@@ -656,8 +765,8 @@ function renderB2BSelected(){
   }
   list.innerHTML = selected.map(product => `
     <div class="b2b-selected-item">
-      <span>${product.name}</span>
-      <button class="btn ghost sm" type="button" onclick="removeB2BProduct('${product.id}')">Quitar</button>
+      <span>${escapeHtml(product.name)}</span>
+      <button class="btn ghost sm" type="button" data-id="${dataAttr(product.id)}" onclick="removeB2BProduct(decodeURIComponent(this.dataset.id))">Quitar</button>
     </div>
   `).join("");
 }
@@ -724,17 +833,362 @@ function syncEstatusSelects(src){
 }
 
 /*******************************
+ * CAPTURA RÁPIDA Y ACCESIBILIDAD
+ *******************************/
+const QUICK_DELIVERY_METHODS = ["A domicilio","Recogen en Better","Recogen en Lomas","Recogen en Atzala"];
+const QUICK_CAPTURE_COPY = {
+  venta:"Registra una venta sin salir de tu módulo actual.",
+  gasto:"Registra un egreso y actualiza finanzas al instante.",
+  cliente:"Agrega o actualiza los datos básicos de un cliente.",
+  evento:"Añade una fecha al calendario operativo.",
+  material:"Agrega o actualiza un insumo para tus recetas."
+};
+let quickCaptureType = "venta";
+let quickReturnFocus = null;
+let quickProductLookup = new Map();
+
+function replaceSelectOptions(selectId, values, selectedValue=""){
+  const select = document.getElementById(selectId);
+  if(!select) return;
+  select.replaceChildren();
+  values.forEach(value=>{
+    const item = typeof value === "string" ? { value, label:value } : value;
+    const option = new Option(item.label, item.value);
+    if(item.disabled) option.disabled = true;
+    if(item.selected || item.value === selectedValue) option.selected = true;
+    select.add(option);
+  });
+}
+
+function readQuickDefaults(){
+  try{ return JSON.parse(localStorage.getItem("panera.quick.defaults") || "{}"); }
+  catch(e){ return {}; }
+}
+
+function saveQuickDefaults(){
+  const defaults = {
+    canal:document.getElementById("qv-canal")?.value || "Whatsapp",
+    envio:document.getElementById("qv-envio")?.value || "Recogen en Atzala",
+    estatus:document.getElementById("qv-estatus")?.value || "por_cobrar",
+    metodoVenta:document.getElementById("qv-metodo")?.value || "Por definir",
+    categoriaGasto:document.getElementById("qg-categoria")?.value || "Ingredientes",
+    metodoGasto:document.getElementById("qg-metodo")?.value || "Efectivo"
+  };
+  localStorage.setItem("panera.quick.defaults", JSON.stringify(defaults));
+}
+
+function renderQuickProductOptions(){
+  const input = document.getElementById("qv-producto");
+  const datalist = document.getElementById("qv-productos-list");
+  if(!input || !datalist) return;
+  quickProductLookup = new Map();
+  datalist.replaceChildren();
+  DB.productos.filter(product=>product.activo!==false).forEach(product=>{
+    Object.entries(product.variantes || {}).forEach(([variant, price])=>{
+      const label = `${product.producto} · ${variant} · ${fmt(price)}`;
+      quickProductLookup.set(label, { product:product.producto, variant, price:Number(price || 0) });
+      const option = document.createElement("option");
+      option.value = label;
+      datalist.appendChild(option);
+    });
+  });
+  updateQuickSaleTotal();
+}
+
+function updateQuickSaleTotal(){
+  const selected = quickProductLookup.get(document.getElementById("qv-producto")?.value || "");
+  const quantity = Number(document.getElementById("qv-cantidad")?.value || 0);
+  const total = Number(selected?.price || 0) * Math.max(0, quantity);
+  const output = document.getElementById("qv-total");
+  if(output) output.textContent = fmt(total);
+}
+
+function syncQuickMaterialUnit(){
+  const unit = document.getElementById("qm-unidad")?.value || "pieza";
+  const options = inputUnitOptions(unit).map(item=>({ value:item.value, label:item.label }));
+  replaceSelectOptions("qm-contenido-unidad", options, defaultInputUnit(unit));
+}
+
+function initQuickCapture(){
+  const defaults = readQuickDefaults();
+  renderQuickProductOptions();
+  replaceSelectOptions("qv-canal", CANALES, defaults.canal || "Whatsapp");
+  replaceSelectOptions("qv-envio", QUICK_DELIVERY_METHODS, defaults.envio || "Recogen en Atzala");
+  replaceSelectOptions("qv-metodo", getMetodosVentas(), defaults.metodoVenta || "Por definir");
+  replaceSelectOptions("qg-categoria", GASTO_CATS, defaults.categoriaGasto || "Ingredientes");
+  replaceSelectOptions("qg-metodo", getMetodosGastos(), defaults.metodoGasto || "Efectivo");
+  const saleStatus = document.getElementById("qv-estatus"); if(saleStatus) saleStatus.value = defaults.estatus || "por_cobrar";
+  const saleDate = document.getElementById("qv-fecha"); if(saleDate && !saleDate.value) saleDate.value = nowLocalDateTime();
+  const expenseDate = document.getElementById("qg-fecha"); if(expenseDate && !expenseDate.value) expenseDate.value = hoyISO();
+  const eventDate = document.getElementById("qe-fecha"); if(eventDate && !eventDate.value) eventDate.value = hoyISO();
+  syncQuickMaterialUnit();
+
+  const modal = document.getElementById("quick-capture");
+  if(modal && !modal.dataset.initialized){
+    modal.dataset.initialized = "true";
+    modal.addEventListener("mousedown", event=>{ if(event.target === modal) closeQuickCapture(); });
+    document.getElementById("qv-producto")?.addEventListener("input", updateQuickSaleTotal);
+    document.getElementById("qv-cantidad")?.addEventListener("input", updateQuickSaleTotal);
+  }
+  const storedType = localStorage.getItem("panera.quick.type");
+  setQuickCaptureType(QUICK_CAPTURE_COPY[storedType] ? storedType : "venta", false);
+}
+
+function setQuickCaptureType(type, focus=true){
+  if(!QUICK_CAPTURE_COPY[type]) type = "venta";
+  quickCaptureType = type;
+  localStorage.setItem("panera.quick.type", type);
+  document.querySelectorAll("[data-quick-type]").forEach(button=>{
+    const active = button.dataset.quickType === type;
+    button.setAttribute("aria-selected", String(active));
+    button.tabIndex = active ? 0 : -1;
+  });
+  document.querySelectorAll("[data-quick-panel]").forEach(panel=>{
+    const active = panel.dataset.quickPanel === type;
+    panel.classList.toggle("hidden", !active);
+    panel.setAttribute("aria-hidden", String(!active));
+  });
+  const subtitle = document.getElementById("quick-capture-subtitle");
+  if(subtitle) subtitle.textContent = QUICK_CAPTURE_COPY[type];
+  if(focus){
+    setTimeout(()=>document.querySelector(`[data-quick-panel="${type}"] input:not([type="hidden"]), [data-quick-panel="${type}"] select`)?.focus(), 20);
+  }
+}
+
+function openQuickCapture(type){
+  if(!isAuthed()){ showAuth(); return; }
+  initQuickCapture();
+  quickReturnFocus = document.activeElement;
+  const modal = document.getElementById("quick-capture");
+  if(!modal) return;
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  setQuickCaptureType(type || quickCaptureType || "venta");
+}
+
+function closeQuickCapture(){
+  const modal = document.getElementById("quick-capture");
+  if(!modal || modal.classList.contains("hidden")) return;
+  modal.classList.add("hidden");
+  modal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("modal-open");
+  if(quickReturnFocus && typeof quickReturnFocus.focus === "function") quickReturnFocus.focus();
+}
+
+function openFullCapture(tabId, sectionId=""){
+  closeQuickCapture();
+  document.querySelector(`nav button[data-tab="${tabId}"]`)?.click();
+  if(sectionId) setTimeout(()=>scrollToSection(sectionId), 30);
+}
+
+function scrollToSection(sectionId){
+  document.getElementById(sectionId)?.scrollIntoView({ behavior:"smooth", block:"start" });
+}
+
+function saveQuickSale(event){
+  event.preventDefault();
+  const selected = quickProductLookup.get(document.getElementById("qv-producto")?.value || "");
+  const product = selected?.product || "";
+  const variant = selected?.variant || "";
+  const price = Number(selected?.price || 0);
+  const quantity = Number(document.getElementById("qv-cantidad")?.value || 0);
+  if(!product || !variant || price<=0 || quantity<=0){ toast("Selecciona un producto y una cantidad válida", "err"); return; }
+
+  const customerName = (document.getElementById("qv-cliente")?.value || "").trim();
+  const customer = upsertClientePorNombre(customerName);
+  const channel = document.getElementById("qv-canal")?.value || "Whatsapp";
+  const deliveryMethod = document.getElementById("qv-envio")?.value || "Recogen en Atzala";
+  const paymentStatus = document.getElementById("qv-estatus")?.value || "por_cobrar";
+  const paymentMethod = document.getElementById("qv-metodo")?.value || "Por definir";
+  const saleDate = document.getElementById("qv-fecha")?.value || nowLocalDateTime();
+  const total = price * quantity;
+  const payments = paymentStatus === "pagado" ? [{ fecha:saleDate, metodo:paymentMethod, monto:total }] : [];
+  const sale = {
+    id:id(), folio:nextFolio(), fecha:saleDate,
+    clienteId:customer.id, clienteNombre:customer.nombre,
+    canal:channel, subtotal:total, descuento:0, total, saldo:paymentStatus === "pagado" ? 0 : total,
+    estatusPago:paymentStatus === "pagado" ? "Pagado" : "Por Cobrar",
+    estatusEntrega:"Por preparar", notas:"",
+    entrega:{ metodo:deliveryMethod, fecha:"", dir:"" }, envioMetodo:deliveryMethod,
+    items:[{ id:id(), prod:product, talla:variant, precio:price, cant:quantity }],
+    pagos:payments
+  };
+  DB.ventas.unshift(sale);
+  saveQuickDefaults();
+  saveDB();
+  renderVentasRecientes();
+  renderClientes();
+  scheduleDashboardRender();
+  renderFinanzas();
+  event.currentTarget.reset();
+  document.getElementById("qv-cantidad").value = 1;
+  document.getElementById("qv-fecha").value = nowLocalDateTime();
+  initQuickCapture();
+  closeQuickCapture();
+  toast(`Venta guardada: ${sale.folio}`);
+}
+
+function saveQuickExpense(event){
+  event.preventDefault();
+  const date = document.getElementById("qg-fecha")?.value || hoyISO();
+  const category = document.getElementById("qg-categoria")?.value || "";
+  const amount = Number(document.getElementById("qg-monto")?.value || 0);
+  const method = document.getElementById("qg-metodo")?.value || "";
+  const provider = (document.getElementById("qg-proveedor")?.value || "").trim();
+  const description = (document.getElementById("qg-descripcion")?.value || "").trim();
+  if(!category || !method || amount<=0){ toast("Completa categoría, método y monto", "err"); return; }
+  DB.gastos.unshift({ id:id(), fecha:date, categoria:category, proveedor:provider, metodo:method, monto:amount, desc:description });
+  if(provider && !DB.proveedores.includes(provider)) DB.proveedores.push(provider);
+  saveQuickDefaults();
+  saveDB();
+  renderProveedoresDatalist();
+  renderGastos();
+  scheduleDashboardRender();
+  renderFinanzas();
+  event.currentTarget.reset();
+  document.getElementById("qg-fecha").value = hoyISO();
+  initQuickCapture();
+  closeQuickCapture();
+  toast("Gasto guardado");
+}
+
+function saveQuickClient(event){
+  event.preventDefault();
+  const name = (document.getElementById("qc-nombre")?.value || "").trim();
+  const phone = (document.getElementById("qc-telefono")?.value || "").trim();
+  const address = (document.getElementById("qc-direccion")?.value || "").trim();
+  const notes = (document.getElementById("qc-notas")?.value || "").trim();
+  if(!name){ toast("Captura el nombre del cliente", "err"); return; }
+  let customer = DB.clientes.find(item=>(item.nombre || "").toLowerCase() === name.toLowerCase());
+  if(!customer){ customer = { id:id(), creadoEn:new Date().toISOString() }; DB.clientes.push(customer); }
+  customer.nombre = name;
+  if(phone || !customer.telefono) customer.telefono = phone;
+  if(address || !customer.direccion) customer.direccion = address;
+  if(notes || !customer.notas) customer.notas = notes;
+  saveDB();
+  renderClientesDatalist();
+  renderClientes();
+  event.currentTarget.reset();
+  closeQuickCapture();
+  toast("Cliente guardado");
+}
+
+function saveQuickEvent(event){
+  event.preventDefault();
+  const name = (document.getElementById("qe-nombre")?.value || "").trim();
+  const date = document.getElementById("qe-fecha")?.value || "";
+  const relevant = document.getElementById("qe-relevante")?.value === "si";
+  if(!name || !date){ toast("Completa evento y fecha", "err"); return; }
+  DB.eventos.push({ id:id_uniq(), nombre:name, fecha:date, relevante:relevant });
+  saveDB();
+  renderEventos();
+  renderCalendario();
+  event.currentTarget.reset();
+  document.getElementById("qe-fecha").value = hoyISO();
+  closeQuickCapture();
+  toast("Evento guardado");
+}
+
+function saveQuickMaterial(event){
+  event.preventDefault();
+  const name = (document.getElementById("qm-nombre")?.value || "").trim();
+  const unit = document.getElementById("qm-unidad")?.value || "pieza";
+  const contentInput = Number(document.getElementById("qm-contenido")?.value || 0);
+  const contentUnit = document.getElementById("qm-contenido-unidad")?.value || defaultInputUnit(unit);
+  const content = toBaseAmount(contentInput, contentUnit);
+  const cost = Number(document.getElementById("qm-costo")?.value || 0);
+  if(!name || content<=0 || cost<=0){ toast("Completa nombre, contenido y costo", "err"); return; }
+  const materialData = { nombre:name, unidad:unit, contenido:content, contenidoUnidad:baseUnitLabel(unit), costo:cost, costoUnit:computeCostoUnit(unit, content, cost) };
+  const existing = DB.costeo.materiales.find(item=>(item.nombre || "").toLowerCase() === name.toLowerCase());
+  if(existing) Object.assign(existing, materialData);
+  else DB.costeo.materiales.push({ id:id_uniq(), ...materialData });
+  saveDB();
+  renderMateriales();
+  renderSelectMateriales();
+  recalcReceta();
+  event.currentTarget.reset();
+  syncQuickMaterialUnit();
+  closeQuickCapture();
+  toast(existing ? "Insumo actualizado" : "Insumo guardado");
+}
+
+function wireFormLabels(){
+  let generated = 0;
+  document.querySelectorAll("label:not([for])").forEach(label=>{
+    let control = label.querySelector("input,select,textarea");
+    if(!control){
+      const next = label.nextElementSibling;
+      if(next?.matches("input,select,textarea")) control = next;
+      else if(next){
+        const nested = next.querySelectorAll("input,select,textarea");
+        if(nested.length === 1) control = nested[0];
+      }
+    }
+    if(!control){
+      const direct = label.parentElement?.querySelectorAll(":scope > input, :scope > select, :scope > textarea") || [];
+      if(direct.length === 1) control = direct[0];
+    }
+    if(!control) return;
+    if(!control.id){
+      generated += 1;
+      control.id = `panera-field-${generated}`;
+    }
+    label.htmlFor = control.id;
+  });
+}
+
+function initKeyboardCapture(){
+  if(document.documentElement.dataset.quickKeys === "true") return;
+  document.documentElement.dataset.quickKeys = "true";
+  document.addEventListener("keydown", event=>{
+    const modal = document.getElementById("quick-capture");
+    const modalOpen = modal && !modal.classList.contains("hidden");
+    if(event.key === "Escape" && modalOpen){ event.preventDefault(); closeQuickCapture(); return; }
+    if(event.key === "Tab" && modalOpen){
+      const focusable = [...modal.querySelectorAll("button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled])")].filter(el=>!el.closest(".hidden"));
+      if(!focusable.length) return;
+      const first = focusable[0]; const last = focusable[focusable.length-1];
+      if(event.shiftKey && document.activeElement === first){ event.preventDefault(); last.focus(); }
+      else if(!event.shiftKey && document.activeElement === last){ event.preventDefault(); first.focus(); }
+      return;
+    }
+    const target = event.target;
+    const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target?.isContentEditable;
+    if(!typing && ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k")){
+      event.preventDefault();
+      openQuickCapture();
+    }
+  });
+}
+
+/*******************************
  * INICIALIZACIÓN DE UI
  *******************************/
 function initUI(){
   // Tabs: ocultar SOLO las secciones de pestaña (no todas las .card internas)
-  document.querySelectorAll("nav button").forEach(btn => {
+  document.querySelectorAll("nav button[data-tab]").forEach(btn => {
+    const panel = document.getElementById(btn.dataset.tab);
+    if(panel){
+      panel.setAttribute("role", "tabpanel");
+      panel.setAttribute("aria-hidden", String(panel.classList.contains("hidden")));
+      if(!panel.hasAttribute("tabindex")) panel.tabIndex = -1;
+    }
     btn.onclick = () => {
-      document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
+      document.querySelectorAll("nav button[data-tab]").forEach(b=>{
+        b.classList.remove("active");
+        b.setAttribute("aria-selected", "false");
+      });
       btn.classList.add("active");
+      btn.setAttribute("aria-selected", "true");
       localStorage.setItem("panera.activeTab", btn.dataset.tab);
-      document.querySelectorAll("section.tab").forEach(s=>s.classList.add("hidden"));
-      document.getElementById(btn.dataset.tab).classList.remove("hidden");
+      document.querySelectorAll("section.tab").forEach(s=>{
+        s.classList.add("hidden");
+        s.setAttribute("aria-hidden", "true");
+      });
+      const activePanel = document.getElementById(btn.dataset.tab);
+      activePanel.classList.remove("hidden");
+      activePanel.setAttribute("aria-hidden", "false");
       if(btn.dataset.tab==="tab-dashboard") renderDashboard();
       if(btn.dataset.tab==="tab-finanzas") renderFinanzas();
       if(btn.dataset.tab==="tab-documentos") listDocuments();
@@ -781,7 +1235,6 @@ function initUI(){
   renderGastos(); renderGastosRecurrentes();
   renderDashboard();
   renderAbcScheduleConfig();
-  listDocuments();
   renderB2B();
   renderMateriales(); renderRecetasList(); renderSelectMateriales(); syncMaterialContenidoUnidad(); syncAbcForm();
   initFinanzasUI(); renderFinanzas();
@@ -791,6 +1244,10 @@ function initUI(){
 
   // Índice de productos para búsqueda rápida
   rebuildProductIndex();
+  initQuickCapture();
+  wireFormLabels();
+  initKeyboardCapture();
+  setSyncStatus("saved");
 
   // Defaults
   document.getElementById("g-fecha").value = hoyISO();
@@ -880,13 +1337,14 @@ function refreshDataViews(){
   renderMateriales(); renderRecetasList(); renderSelectMateriales(); syncMaterialContenidoUnidad(); syncAbcForm();
   initFinanzasUI(); renderFinanzas(); renderCalendario(); renderEventos(); initEnvioUI();
   rebuildProductIndex();
+  initQuickCapture();
   const fb = document.getElementById('footer-brand'); if(fb) fb.textContent = DB.config.nombreNegocio || 'Panera Signature';
   const cfgNombre = document.getElementById('cfg-nombre'); if(cfgNombre) cfgNombre.value = DB.config.nombreNegocio || '';
   const cfgPref = document.getElementById('cfg-prefijo'); if(cfgPref) cfgPref.value = DB.config.prefijo || 'PAN';
   const cfgAuto = document.getElementById('cfg-autoprint'); if(cfgAuto) cfgAuto.value = DB.config.autoPrintTicket ? 'si' : 'no';
   const cfgMPv = document.getElementById('cfg-mp-ventas'); if(cfgMPv) cfgMPv.value = (DB.config.metodosVentas||[]).join(',');
   const cfgMPg = document.getElementById('cfg-mp-gastos'); if(cfgMPg) cfgMPg.value = (DB.config.metodosGastos||[]).join(',');
-  listDocuments();
+  if(document.querySelector('[data-tab="tab-documentos"]')?.classList.contains('active')) listDocuments();
 }
 
 function fillSelect(id_, arr){
@@ -894,8 +1352,14 @@ function fillSelect(id_, arr){
   if(!s) return;
   const needsPH = s.hasAttribute('required');
   const ph = s.dataset.placeholder || '— Selecciona —';
-  s.innerHTML = needsPH ? `<option value="" disabled selected>${ph}</option>` : '';
-  s.innerHTML += (arr||[]).map(x=>`<option>${x}</option>`).join("");
+  s.replaceChildren();
+  if(needsPH){
+    const placeholder = new Option(ph, "");
+    placeholder.disabled = true;
+    placeholder.selected = true;
+    s.add(placeholder);
+  }
+  (arr||[]).forEach(value=>s.add(new Option(String(value), String(value))));
 }
 
 // Espejo visual del método de envío
@@ -951,11 +1415,11 @@ function renderTablaProductos(){
       const text = `${p.producto} ${nombre}`.toLowerCase();
       if(q && !text.includes(q)) return;
       rows.push(`<tr>
-        <td>${p.producto}</td>
-        <td>${nombre}</td>
+        <td>${escapeHtml(p.producto)}</td>
+        <td>${escapeHtml(nombre)}</td>
         <td class="right">${fmt(precio)}</td>
         <td>
-          <label><input type="checkbox" ${p.activo!==false?"checked":""} onchange="toggleProductoActivo('${p.producto}', this.checked)"> Activo</label>
+          <label><input type="checkbox" data-product="${dataAttr(p.producto)}" ${p.activo!==false?"checked":""} onchange="toggleProductoActivo(decodeURIComponent(this.dataset.product), this.checked)"> Activo</label>
         </td>
       </tr>`);
     });
@@ -986,7 +1450,13 @@ function agregarClienteRapido(){
 }
 function renderClientesDatalist(){
   const dl = document.getElementById("dl-clientes");
-  dl.innerHTML = DB.clientes.map(c=>`<option value="${c.nombre}">`).join("");
+  if(!dl) return;
+  dl.replaceChildren();
+  DB.clientes.forEach(customer=>{
+    const option = document.createElement("option");
+    option.value = String(customer.nombre || "");
+    dl.appendChild(option);
+  });
 }
 
 /* =====================
@@ -1011,9 +1481,9 @@ function renderSugerenciasCliente(){
   const arr = buscarCoincidenciasCliente(q);
   if(arr.length===0){ box.classList.add('hidden'); box.innerHTML=''; return; }
   box.innerHTML = arr.map(c=>`
-    <div class="ac-item" data-id="${c.id}" onclick="selectClienteDesdeAC('${c.id}')">
-      <div class="ac-name">${c.nombre}</div>
-      <div class="ac-meta">${c.telefono||''}<br>${(c.direccion||'').slice(0,48)}</div>
+    <div class="ac-item" data-id="${dataAttr(c.id)}" onclick="selectClienteDesdeAC(decodeURIComponent(this.dataset.id))">
+      <div class="ac-name">${escapeHtml(c.nombre)}</div>
+      <div class="ac-meta">${escapeHtml(c.telefono||'')}<br>${escapeHtml((c.direccion||'').slice(0,48))}</div>
     </div>`).join('');
   box.classList.remove('hidden');
 }
@@ -1055,14 +1525,14 @@ function renderClientes(){
       return 0;
     })
     .map(({c,s})=>`<tr>
-      <td>${c.nombre}</td>
-      <td>${c.telefono||""}</td>
-      <td>${c.direccion||""}</td>
+      <td>${escapeHtml(c.nombre)}</td>
+      <td>${escapeHtml(c.telefono||"")}</td>
+      <td>${escapeHtml(c.direccion||"")}</td>
       <td class="right">${fmt(s.total)}</td>
-      <td>${s.ultima? s.ultima.slice(0,10):""}</td>
+      <td>${escapeHtml(s.ultima? s.ultima.slice(0,10):"")}</td>
       <td>
-        <button class="btn alt" onclick="editarCliente('${c.id}')">Editar</button>
-        <button class="btn ghost" onclick="eliminarCliente('${c.id}')">Eliminar</button>
+        <button class="btn alt" data-id="${dataAttr(c.id)}" onclick="editarCliente(decodeURIComponent(this.dataset.id))">Editar</button>
+        <button class="btn ghost" data-id="${dataAttr(c.id)}" onclick="eliminarCliente(decodeURIComponent(this.dataset.id))">Eliminar</button>
       </td>
     </tr>`);
   document.querySelector("#tabla-clientes tbody").innerHTML = rows.join("") || `<tr><td colspan="6" class="muted">Sin clientes</td></tr>`;
@@ -1130,10 +1600,10 @@ function renderItems(){
   const tb = document.querySelector("#tabla-items tbody");
   tb.innerHTML = VENTA.items.map((it,idx)=>`
     <tr>
-      <td>${it.prod}</td>
-      <td>${it.talla}</td>
+      <td>${escapeHtml(it.prod)}</td>
+      <td>${escapeHtml(it.talla)}</td>
       <td class="right">${fmt(it.precio)}</td>
-      <td class="right">${it.cant}</td>
+      <td class="right">${escapeHtml(it.cant)}</td>
       <td class="right">${fmt(it.precio*it.cant)}</td>
       <td class="right"><button class="btn ghost" onclick="removeItem(${idx})">Quitar</button></td>
     </tr>`).join("");
@@ -1170,8 +1640,8 @@ function renderPagos(){
   const tb = document.querySelector("#tabla-pagos tbody");
   tb.innerHTML = VENTA.pagos.map((p,idx)=>`
     <tr>
-      <td>${p.fecha.slice(0,16).replace("T"," ")}</td>
-      <td>${p.metodo}</td>
+      <td>${escapeHtml(String(p.fecha || "").slice(0,16).replace("T"," "))}</td>
+      <td>${escapeHtml(p.metodo)}</td>
       <td class="right">${fmt(p.monto)}</td>
       <td class="right"><button class="btn ghost" onclick="removePago(${idx})">Quitar</button></td>
     </tr>`).join("");
@@ -1352,10 +1822,10 @@ function whatsappShare(){
   const sub = sum(VENTA.items, it=>it.precio*it.cant);
   const desc = Number(document.getElementById("t-descuento").value||0);
   const total = Math.max(0, sub - desc);
-  const lineas = VENTA.items.map(it=>`• ${it.cant}× ${it.prod} ${it.talla} = ${fmt(it.precio*it.cant)}`).join("%0A");
-  const brand = encodeURIComponent(DB.config?.nombreNegocio || 'Panera Signature');
-  const txt = `${brand}%0A${lineas}%0A—%0ASubtotal: ${fmt(sub)}%0ADescuento: ${fmt(desc)}%0ATotal: ${fmt(total)}`;
-  window.open(`https://wa.me/?text=${txt}`, "_blank");
+  const lineas = VENTA.items.map(it=>`• ${it.cant}× ${it.prod} ${it.talla} = ${fmt(it.precio*it.cant)}`).join("\n");
+  const brand = DB.config?.nombreNegocio || 'Panera Signature';
+  const txt = `${brand}\n${lineas}\n—\nSubtotal: ${fmt(sub)}\nDescuento: ${fmt(desc)}\nTotal: ${fmt(total)}`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`, "_blank", "noopener,noreferrer");
 }
 
 function imprimirTicket(){
@@ -1366,19 +1836,19 @@ function imprimirTicket(){
   const total = Math.max(0, sub - desc);
   const pagado = sum(VENTA.pagos, p=>p.monto);
   const saldo = Math.max(0,total - pagado);
-  const rows = VENTA.items.map(it=>`<tr><td>${it.cant}× ${it.prod} ${it.talla}</td><td class="right">${fmt(it.precio*it.cant)}</td></tr>`).join("");
+  const rows = VENTA.items.map(it=>`<tr><td>${escapeHtml(it.cant)}× ${escapeHtml(it.prod)} ${escapeHtml(it.talla)}</td><td class="right">${escapeHtml(fmt(it.precio*it.cant))}</td></tr>`).join("");
   w.document.write(`
     <style>body{font-family:monospace;padding:10px} table{width:100%} td{padding:4px 0} .right{text-align:right}</style>
-    <h3>${brand}</h3>
-    <small>${new Date().toLocaleString()}</small>
+    <h3>${escapeHtml(brand)}</h3>
+    <small>${escapeHtml(new Date().toLocaleString())}</small>
     <table>${rows}</table>
     <hr>
     <table>
-      <tr><td>Subtotal</td><td class="right">${fmt(sub)}</td></tr>
-      <tr><td>Descuento</td><td class="right">${fmt(desc)}</td></tr>
-      <tr><td><b>Total</b></td><td class="right"><b>${fmt(total)}</b></td></tr>
-      <tr><td>Pagado</td><td class="right">${fmt(pagado)}</td></tr>
-      <tr><td>Saldo</td><td class="right">${fmt(saldo)}</td></tr>
+      <tr><td>Subtotal</td><td class="right">${escapeHtml(fmt(sub))}</td></tr>
+      <tr><td>Descuento</td><td class="right">${escapeHtml(fmt(desc))}</td></tr>
+      <tr><td><b>Total</b></td><td class="right"><b>${escapeHtml(fmt(total))}</b></td></tr>
+      <tr><td>Pagado</td><td class="right">${escapeHtml(fmt(pagado))}</td></tr>
+      <tr><td>Saldo</td><td class="right">${escapeHtml(fmt(saldo))}</td></tr>
     </table>
     <p style="text-align:center">Gracias por su compra</p>
   `);
@@ -1420,20 +1890,20 @@ function renderVentasRecientes(){
     const mpSet = new Set((v.pagos||[]).map(p=>p.metodo));
     const mpTxt = mpSet.size===0 ? "—" : (mpSet.size>1 ? "Mixto" : [...mpSet][0]);
     return `<tr>
-      <td>${v.folio}</td>
-      <td>${fmtLocal(v.fecha)}</td>
-      <td>${v.clienteNombre||"Mostrador"}</td>
-      <td>${v.canal||"—"}</td>
-      <td>${v.envioMetodo||"—"}</td>
-      <td>${v.estatusPago||"—"}</td>
-      <td>${mpTxt}</td>
+      <td>${escapeHtml(v.folio)}</td>
+      <td>${escapeHtml(fmtLocal(v.fecha))}</td>
+      <td>${escapeHtml(v.clienteNombre||"Mostrador")}</td>
+      <td>${escapeHtml(v.canal||"—")}</td>
+      <td>${escapeHtml(v.envioMetodo||"—")}</td>
+      <td>${escapeHtml(v.estatusPago||"—")}</td>
+      <td>${escapeHtml(mpTxt)}</td>
       <td class="right">${fmt(v.total)}</td>
       <td class="right">${fmt(v.saldo)}</td>
-      <td>${v.estatusEntrega||"—"}</td>
+      <td>${escapeHtml(v.estatusEntrega||"—")}</td>
       <td>
-        <button class="btn alt" onclick="editarVenta('${v.id}')">Editar</button>
-        <button class="btn primary" onclick="duplicarVenta('${v.id}')">Duplicar</button>
-        <button class="btn ghost" onclick="eliminarVenta('${v.id}')">Eliminar</button>
+        <button class="btn alt" data-id="${dataAttr(v.id)}" onclick="editarVenta(decodeURIComponent(this.dataset.id))">Editar</button>
+        <button class="btn primary" data-id="${dataAttr(v.id)}" onclick="duplicarVenta(decodeURIComponent(this.dataset.id))">Duplicar</button>
+        <button class="btn ghost" data-id="${dataAttr(v.id)}" onclick="eliminarVenta(decodeURIComponent(this.dataset.id))">Eliminar</button>
       </td>
     </tr>`;
   });
@@ -1454,7 +1924,13 @@ function eliminarVenta(ventaId){
  *******************************/
 function renderProveedoresDatalist(){
   const dl = document.getElementById("dl-proveedores");
-  dl.innerHTML = DB.proveedores.map(p=>`<option value="${p}">`).join("");
+  if(!dl) return;
+  dl.replaceChildren();
+  DB.proveedores.forEach(provider=>{
+    const option = document.createElement("option");
+    option.value = String(provider || "");
+    dl.appendChild(option);
+  });
 }
 function parseISODate(dateStr){
   const [y,m,d] = String(dateStr||"").split("-").map(Number);
@@ -1556,16 +2032,16 @@ function renderGastosRecurrentes(){
   if(!tb) return;
   const arr = (DB.gastosRecurrentes||[]).slice().sort((a,b)=>(a.nextDate||a.inicio||"").localeCompare(b.nextDate||b.inicio||""));
   tb.innerHTML = arr.map(r=>`<tr>
-    <td>${r.nombre||""}${r.activo===false ? ' <span class="muted">(pausado)</span>' : ''}</td>
-    <td>${r.categoria||""}</td>
-    <td>${recurrentFrequencyLabel(r.frecuencia)}</td>
-    <td>${r.nextDate || r.inicio || ""}</td>
+    <td>${escapeHtml(r.nombre||"")}${r.activo===false ? ' <span class="muted">(pausado)</span>' : ''}</td>
+    <td>${escapeHtml(r.categoria||"")}</td>
+    <td>${escapeHtml(recurrentFrequencyLabel(r.frecuencia))}</td>
+    <td>${escapeHtml(r.nextDate || r.inicio || "")}</td>
     <td class="right">${fmt(r.monto)}</td>
     <td>
-      <button class="btn alt" onclick="editarGastoRecurrente('${r.id}')">Editar</button>
-      <button class="btn primary" onclick="generarGastosRecurrentes('${r.id}')">Generar</button>
-      <button class="btn ghost" onclick="pausarGastoRecurrente('${r.id}')">${r.activo===false ? "Activar" : "Pausar"}</button>
-      <button class="btn ghost" onclick="eliminarGastoRecurrente('${r.id}')">Eliminar</button>
+      <button class="btn alt" data-id="${dataAttr(r.id)}" onclick="editarGastoRecurrente(decodeURIComponent(this.dataset.id))">Editar</button>
+      <button class="btn primary" data-id="${dataAttr(r.id)}" onclick="generarGastosRecurrentes(decodeURIComponent(this.dataset.id))">Generar</button>
+      <button class="btn ghost" data-id="${dataAttr(r.id)}" onclick="pausarGastoRecurrente(decodeURIComponent(this.dataset.id))">${r.activo===false ? "Activar" : "Pausar"}</button>
+      <button class="btn ghost" data-id="${dataAttr(r.id)}" onclick="eliminarGastoRecurrente(decodeURIComponent(this.dataset.id))">Eliminar</button>
     </td>
   </tr>`).join("") || `<tr><td colspan="6" class="muted">Sin gastos recurrentes</td></tr>`;
 }
@@ -1670,15 +2146,15 @@ function renderGastos(){
   if(q)    arr = arr.filter(g=> ((g.desc||"").toLowerCase().includes(q) || (g.proveedor||"").toLowerCase().includes(q)));
   const tb = document.querySelector("#tabla-gastos tbody");
   tb.innerHTML = arr.map(g=>`<tr>
-    <td>${g.fecha}</td>
-    <td>${g.categoria}</td>
-    <td>${g.proveedor||""}</td>
-    <td>${g.desc||""}</td>
+    <td>${escapeHtml(g.fecha)}</td>
+    <td>${escapeHtml(g.categoria)}</td>
+    <td>${escapeHtml(g.proveedor||"")}</td>
+    <td>${escapeHtml(g.desc||"")}</td>
     <td class="right">${fmt(g.monto)}</td>
     <td>
-      <button class="btn alt" onclick="editarGasto('${g.id}')">Editar</button>
-      <button class="btn primary" onclick="duplicarGasto('${g.id}')">Duplicar</button>
-      <button class="btn ghost" onclick="eliminarGasto('${g.id}')">Eliminar</button>
+      <button class="btn alt" data-id="${dataAttr(g.id)}" onclick="editarGasto(decodeURIComponent(this.dataset.id))">Editar</button>
+      <button class="btn primary" data-id="${dataAttr(g.id)}" onclick="duplicarGasto(decodeURIComponent(this.dataset.id))">Duplicar</button>
+      <button class="btn ghost" data-id="${dataAttr(g.id)}" onclick="eliminarGasto(decodeURIComponent(this.dataset.id))">Eliminar</button>
     </td>
   </tr>`).join("") || `<tr><td colspan="6" class="muted">Sin gastos</td></tr>`;
 
@@ -1790,9 +2266,9 @@ function renderFinanzas(){
   const tb = document.querySelector('#tabla-estado-cuenta tbody');
   if(tb){
     tb.innerHTML = rows.map(r=>`<tr>
-      <td>${r.date}</td>
+      <td>${escapeHtml(r.date)}</td>
       <td>${r.type === 'ingreso' ? 'Ingreso' : 'Egreso'}</td>
-      <td>${r.concept}</td>
+      <td>${escapeHtml(r.concept)}</td>
       <td class="right">${r.income ? fmt(r.income) : ''}</td>
       <td class="right">${r.expense ? fmt(r.expense) : ''}</td>
       <td class="right">${fmt(r.balance)}</td>
@@ -1861,8 +2337,8 @@ function generarReporte(){
   if(d) gastos = gastos.filter(g=>g.fecha>=d);
   if(h) gastos = gastos.filter(g=>g.fecha<=h);
 
-  const fmtRow = (cols)=>`<tr>${cols.map((x,i)=>`<td class="${i>=cols.length-2? 'right':''}">${x}</td>`).join('')}</tr>`;
-  const table = (headers, rows)=>`<table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')||`<tr><td colspan="${headers.length}" class="muted">Sin resultados</td></tr>`}</tbody></table>`;
+  const fmtRow = (cols)=>`<tr>${cols.map((x,i)=>`<td class="${i>=cols.length-2? 'right':''}">${escapeHtml(x)}</td>`).join('')}</tr>`;
+  const table = (headers, rows)=>`<table><thead><tr>${headers.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')||`<tr><td colspan="${headers.length}" class="muted">Sin resultados</td></tr>`}</tbody></table>`;
 
   if(tipo==="resumen"){
     const ventasTotal = sum(ventas,v=>v.total);
@@ -2040,7 +2516,7 @@ function generarCorteRapidoHoy(){
   const cxc = sum(ventas.filter(v=>(v.estatusPago||"")!=="Pagado"), v=>Math.max(0, Number(v.saldo||0)));
   const tg = sum(gastos,g=>Number(g.monto||0));
   const util = total - tg;
-  const tbl = Object.entries(porMP).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td class="right">${fmt(v)}</td></tr>`).join("") || `<tr><td colspan="2" class="muted">Sin pagos</td></tr>`;
+  const tbl = Object.entries(porMP).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${escapeHtml(k)}</td><td class="right">${fmt(v)}</td></tr>`).join("") || `<tr><td colspan="2" class="muted">Sin pagos</td></tr>`;
   const html = `
     <div class="modal" onclick="this.remove()">
       <div class="box" onclick="event.stopPropagation()">
@@ -2217,12 +2693,12 @@ function renderDashboard(){
   }).sort((a,b)=> new Date(a.entrega.fecha) - new Date(b.entrega.fecha));
   const tbp = document.querySelector('#tabla-entregas-proximas tbody');
   if(tbp){ tbp.innerHTML = (entregas.map(v=>`<tr>
-      <td>${v.folio}</td>
-      <td>${v.clienteNombre||'Mostrador'}</td>
-      <td>${(v.entrega?.fecha||'').replace('T',' ').slice(0,16)}</td>
-      <td>${v.envioMetodo||'—'}</td>
-      <td>${v.estatusEntrega||'—'}</td>
-      <td>${(v.notas||'')}</td>
+      <td>${escapeHtml(v.folio)}</td>
+      <td>${escapeHtml(v.clienteNombre||'Mostrador')}</td>
+      <td>${escapeHtml((v.entrega?.fecha||'').replace('T',' ').slice(0,16))}</td>
+      <td>${escapeHtml(v.envioMetodo||'—')}</td>
+      <td>${escapeHtml(v.estatusEntrega||'—')}</td>
+      <td>${escapeHtml(v.notas||'')}</td>
     </tr>`).join('')) || `<tr><td colspan="6" class="muted">Sin entregas próximas</td></tr>`; }
 }
 
@@ -2290,15 +2766,23 @@ function procesarCSV(){
 /*******************************
  * ARRANQUE
  *******************************/
+async function startAuthenticatedApp(){
+  if(authenticatedStartPromise) return authenticatedStartPromise;
+  authenticatedStartPromise = (async()=>{
+    const remoteChanged = await syncRemoteDB();
+    const seededRecurring = seedDefaultRecurringExpenses();
+    if(seededRecurring) saveDB();
+    if(remoteChanged || seededRecurring) refreshDataViews();
+    if(seededRecurring) toast('Se agregaron las plantillas iniciales de gastos fijos y nómina');
+  })();
+  return authenticatedStartPromise;
+}
 async function bootstrap(){
   loadDB();
-  initAuth();
   initUI();
-  const remoteChanged = await syncRemoteDB();
-  const seededRecurring = seedDefaultRecurringExpenses();
-  if(seededRecurring) saveDB();
-  if(remoteChanged || seededRecurring) refreshDataViews();
-  if(seededRecurring) toast('Se agregaron las plantillas iniciales de gastos fijos y nómina');
+  scheduleChartLibrary();
+  const authenticated = await initAuth();
+  if(authenticated) await startAuthenticatedApp();
 }
 window.addEventListener("DOMContentLoaded", bootstrap, { once:true });
 
@@ -2327,9 +2811,9 @@ function renderSugerenciasProducto(){
   const box = document.getElementById('p-suggest'); const inp = document.getElementById('p-buscar-rapido'); if(!box||!inp) return;
   const arr = buscarProductoRapido(inp.value);
   if(arr.length===0){ box.classList.add('hidden'); box.innerHTML=''; return; }
-  box.innerHTML = arr.map(r=>`<div class="ac-item" onclick="selectProductoSugerencia('${r.cat}','${r.prod}','${r.var}')">
-    <div class="ac-name">${r.prod} <span class="badge">${r.var}</span></div>
-    <div class="ac-meta">${r.cat}<br>${fmt(r.precio)}</div>
+  box.innerHTML = arr.map(r=>`<div class="ac-item" data-category="${dataAttr(r.cat)}" data-product="${dataAttr(r.prod)}" data-variant="${dataAttr(r.var)}" onclick="selectProductoSugerencia(decodeURIComponent(this.dataset.category), decodeURIComponent(this.dataset.product), decodeURIComponent(this.dataset.variant))">
+    <div class="ac-name">${escapeHtml(r.prod)} <span class="badge">${escapeHtml(r.var)}</span></div>
+    <div class="ac-meta">${escapeHtml(r.cat)}<br>${fmt(r.precio)}</div>
   </div>`).join('');
   box.classList.remove('hidden');
 }
@@ -2366,13 +2850,13 @@ function renderEventos(){
   const tb = document.querySelector('#tabla-eventos tbody'); if(!tb) return;
   const arr = DB.eventos.slice().sort((a,b)=> a.fecha.localeCompare(b.fecha));
   tb.innerHTML = arr.map(e=>`<tr>
-    <td>${e.fecha}</td>
-    <td>${e.nombre}</td>
+    <td>${escapeHtml(e.fecha)}</td>
+    <td>${escapeHtml(e.nombre)}</td>
     <td>${e.relevante? 'Sí':'No'}</td>
     <td class="right">${daysUntil(e.fecha)}</td>
     <td>
-      <button class="btn alt" onclick="toggleEventoRel('${e.id}')">${e.relevante?'Quitar relevancia':'Marcar relevante'}</button>
-      <button class="btn ghost" onclick="eliminarEvento('${e.id}')">Eliminar</button>
+      <button class="btn alt" data-id="${dataAttr(e.id)}" onclick="toggleEventoRel(decodeURIComponent(this.dataset.id))">${e.relevante?'Quitar relevancia':'Marcar relevante'}</button>
+      <button class="btn ghost" data-id="${dataAttr(e.id)}" onclick="eliminarEvento(decodeURIComponent(this.dataset.id))">Eliminar</button>
     </td>
   </tr>`).join('') || `<tr><td colspan="5" class="muted">Sin eventos</td></tr>`;
 }
@@ -2392,7 +2876,7 @@ function renderCalendario(){
   for(let d=1; d<=daysInMonth; d++){
     const yyyy = String(y); const mm = String(m+1).padStart(2,'0'); const dd = String(d).padStart(2,'0'); const iso=`${yyyy}-${mm}-${dd}`;
     const evs = DB.eventos.filter(e=>e.fecha===iso);
-    const mark = evs.map(e=>`<div class="badge" style="${e.relevante?'background:#fde68a':''}">${e.nombre}</div>`).join('');
+    const mark = evs.map(e=>`<div class="badge" style="${e.relevante?'background:#fde68a':''}">${escapeHtml(e.nombre)}</div>`).join('');
     cells.push(`<div style="border:1px solid var(--p-light);border-radius:8px;padding:6px;min-height:70px">
       <div style="font-size:12px;color:#64748b">${d}</div>
       ${mark}
@@ -2565,8 +3049,8 @@ function renderEnvioRings(cfg){
     const priceText = Number.isFinite(z.price) ? fmt(z.price) : '-';
     return `<li>
       <span class="envio-dot" style="background:${z.color}"></span>
-      <div class="envio-legend-text"><b>${z.name}</b><span class="muted">${range}</span></div>
-      <div class="right">${priceText}</div>
+      <div class="envio-legend-text"><b>${escapeHtml(z.name)}</b><span class="muted">${escapeHtml(range)}</span></div>
+      <div class="right">${escapeHtml(priceText)}</div>
     </li>`;
   }).join('');
   const specialText = specialPrice > 0 ? fmt(specialPrice) : 'Cotizacion especial';
@@ -2773,22 +3257,22 @@ function renderEnvioBulkResults(results){
     if(r.error){
       return `<tr>
         <td>${r.idx}</td>
-        <td>${r.label || '-'}</td>
+        <td>${escapeHtml(r.label || '-')}</td>
         <td class="muted">-</td>
         <td class="right">-</td>
         <td class="muted">-</td>
         <td class="right">-</td>
-        <td class="muted">${r.error}</td>
+        <td class="muted">${escapeHtml(r.error)}</td>
       </tr>`;
     }
     const coordText = `${r.coords.lat.toFixed(6)}, ${r.coords.lon.toFixed(6)}`;
     return `<tr>
       <td>${r.idx}</td>
-      <td>${r.label || '-'}</td>
-      <td>${coordText}</td>
+      <td>${escapeHtml(r.label || '-')}</td>
+      <td>${escapeHtml(coordText)}</td>
       <td class="right">${r.km.toFixed(2)}</td>
-      <td>${r.quote.label}</td>
-      <td class="right">${r.quote.priceText}</td>
+      <td>${escapeHtml(r.quote.label)}</td>
+      <td class="right">${escapeHtml(r.quote.priceText)}</td>
       <td>${r.quote.special ? 'Especial' : 'OK'}</td>
     </tr>`;
   }).join('');
@@ -2942,8 +3426,11 @@ function calcCostoReceta(receta){
   return { totalPz, totalGr, insumos, indirectos, abc, costo };
 }
 function renderSelectMateriales(){
-  const opts = (DB.costeo.materiales||[]).map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('');
-  const sel = document.getElementById('ct-r-mat'); if(sel){ sel.innerHTML = `<option value="">— Selecciona —</option>`+opts; }
+  const sel = document.getElementById('ct-r-mat');
+  if(sel){
+    sel.replaceChildren(new Option('— Selecciona —', ''));
+    (DB.costeo.materiales||[]).forEach(material=>sel.add(new Option(String(material.nombre || ''), String(material.id || ''))));
+  }
   syncIngredienteUnidad();
 }
 function renderAbcCats(){
@@ -2952,8 +3439,8 @@ function renderAbcCats(){
   const selected = new Set(CT.receta.abc.categories || []);
   wrap.innerHTML = GASTO_CATS.map(cat=>`
     <label class="tag" style="cursor:pointer">
-      <input type="checkbox" value="${cat}" ${selected.has(cat)?'checked':''} onchange="recalcReceta()">
-      ${cat}
+      <input type="checkbox" value="${escapeHtml(cat)}" ${selected.has(cat)?'checked':''} onchange="recalcReceta()">
+      ${escapeHtml(cat)}
     </label>
   `).join('');
 }
@@ -3091,12 +3578,12 @@ function renderMateriales(){
     return okQ && okU;
   });
   tb.innerHTML = arr.map(m=>`<tr>
-    <td>${m.nombre}</td>
-    <td>${m.unidad}</td>
-    <td>${displayAmount(m.contenido, baseUnitLabel(m.unidad))}</td>
+    <td>${escapeHtml(m.nombre)}</td>
+    <td>${escapeHtml(m.unidad)}</td>
+    <td>${escapeHtml(displayAmount(m.contenido, baseUnitLabel(m.unidad)))}</td>
     <td class="right">${m.costo? fmt(m.costo):''}</td>
     <td class="right">${m.costoUnit? fmt(m.costoUnit):''}</td>
-    <td><button class="btn alt" onclick="editarMaterial('${m.id}')">Editar</button> <button class="btn ghost" onclick="eliminarMaterial('${m.id}')">Eliminar</button></td>
+    <td><button class="btn alt" data-id="${dataAttr(m.id)}" onclick="editarMaterial(decodeURIComponent(this.dataset.id))">Editar</button> <button class="btn ghost" data-id="${dataAttr(m.id)}" onclick="eliminarMaterial(decodeURIComponent(this.dataset.id))">Eliminar</button></td>
   </tr>`).join('') || `<tr><td colspan="6" class="muted">Sin materiales</td></tr>`;
 }
 function nuevaReceta(){
@@ -3133,15 +3620,15 @@ function renderRecetaItems(){
   const tb = document.querySelector('#tabla-receta-it tbody'); if(!tb) return;
   const mats = new Map((DB.costeo.materiales||[]).map(m=>[m.id,m]));
   tb.innerHTML = (CT.receta.items||[]).map(it=>{ const m=mats.get(it.matId)||{}; const cost= (m.costoUnit||0) * (it.cant||0); return `<tr>
-    <td>${m.nombre||'—'}</td>
-    <td>${displayAmount(it.cant, baseUnitLabel(m.unidad))}</td>
-    <td>${baseUnitLabel(m.unidad)}</td>
+    <td>${escapeHtml(m.nombre||'—')}</td>
+    <td>${escapeHtml(displayAmount(it.cant, baseUnitLabel(m.unidad)))}</td>
+    <td>${escapeHtml(baseUnitLabel(m.unidad))}</td>
     <td class="right">${m.costoUnit? fmt(m.costoUnit):''}</td>
     <td class="right">${cost? fmt(cost):''}</td>
     <td>
-      <button class="btn alt" onclick="editarIngrediente('${it.id}')">Editar</button>
-      <button class="btn primary" onclick="duplicarIngrediente('${it.id}')">Duplicar</button>
-      <button class="btn ghost" onclick="removeIngrediente('${it.id}')">Eliminar</button>
+      <button class="btn alt" data-id="${dataAttr(it.id)}" onclick="editarIngrediente(decodeURIComponent(this.dataset.id))">Editar</button>
+      <button class="btn primary" data-id="${dataAttr(it.id)}" onclick="duplicarIngrediente(decodeURIComponent(this.dataset.id))">Duplicar</button>
+      <button class="btn ghost" data-id="${dataAttr(it.id)}" onclick="removeIngrediente(decodeURIComponent(this.dataset.id))">Eliminar</button>
     </td>
   </tr>`; }).join('') || `<tr><td colspan="6" class="muted">Sin ingredientes</td></tr>`;
 }
@@ -3176,11 +3663,11 @@ function renderIndirectos(){
   const tb = document.querySelector('#ct-indirectos tbody'); if(!tb) return;
   ensureIndirectos(CT.receta);
   tb.innerHTML = (CT.receta.indirectos||[]).map(ci=>`<tr>
-    <td>${ci.concepto||''}</td>
+    <td>${escapeHtml(ci.concepto||'')}</td>
     <td class="right">${ci.monto? fmt(ci.monto):''}</td>
     <td>
-      <button class="btn alt" onclick="editarCostoIndirecto('${ci.id}')">Editar</button>
-      <button class="btn ghost" onclick="eliminarCostoIndirecto('${ci.id}')">Eliminar</button>
+      <button class="btn alt" data-id="${dataAttr(ci.id)}" onclick="editarCostoIndirecto(decodeURIComponent(this.dataset.id))">Editar</button>
+      <button class="btn ghost" data-id="${dataAttr(ci.id)}" onclick="eliminarCostoIndirecto(decodeURIComponent(this.dataset.id))">Eliminar</button>
     </td>
   </tr>`).join('') || `<tr><td colspan="3" class="muted">Sin costos indirectos</td></tr>`;
 }
@@ -3238,9 +3725,10 @@ function recalcReceta(){
   const sumAll = totalPz + totalGr + indirectos + abcCost;
   const cont = document.getElementById('ct-ch-distrib');
   if(cont){
-    if(sumAll<=0){ cont.closest('.card')?.classList.add('hidden'); }
+    const chartSection = cont.closest('.subsection');
+    if(sumAll<=0){ chartSection?.classList.add('hidden'); }
     else{
-      cont.closest('.card')?.classList.remove('hidden');
+      chartSection?.classList.remove('hidden');
       drawChartDoughnut('ct-ch-distrib', ['Piezas','Gr/ML','Indirectos','ABC tiempo'], [totalPz,totalGr,indirectos,abcCost], ()=>{});
     }
   }
@@ -3268,16 +3756,16 @@ function renderRecetasList(){
     const costo = detail.costo;
     const margen = rc.precio>0? Math.round((1 - (costo/(rc.precio||1))) * 100) : 0;
     return `<tr>
-      <td>${rc.producto}</td>
+      <td>${escapeHtml(rc.producto)}</td>
       <td class="right">${fmt(costo)}</td>
       <td class="right">${fmt(rc.precio||0)}</td>
       <td class="right">${margen}%</td>
       <td>
-        <button class="btn alt" onclick="cargarReceta('${rc.id}')">Editar</button>
-        <button class="btn primary" onclick="duplicarReceta('${rc.id}')">Duplicar</button>
-        <button class="btn ghost" onclick="eliminarReceta('${rc.id}')">Eliminar</button>
-        <button class="btn ghost" onclick="exportarJSONReceta('${rc.id}')">Exportar</button>
-        <button class="btn ghost" onclick="exportarPDFReceta('${rc.id}')">PDF</button>
+        <button class="btn alt" data-id="${dataAttr(rc.id)}" onclick="cargarReceta(decodeURIComponent(this.dataset.id))">Editar</button>
+        <button class="btn primary" data-id="${dataAttr(rc.id)}" onclick="duplicarReceta(decodeURIComponent(this.dataset.id))">Duplicar</button>
+        <button class="btn ghost" data-id="${dataAttr(rc.id)}" onclick="eliminarReceta(decodeURIComponent(this.dataset.id))">Eliminar</button>
+        <button class="btn ghost" data-id="${dataAttr(rc.id)}" onclick="exportarJSONReceta(decodeURIComponent(this.dataset.id))">Exportar</button>
+        <button class="btn ghost" data-id="${dataAttr(rc.id)}" onclick="exportarPDFReceta(decodeURIComponent(this.dataset.id))">PDF</button>
       </td>
     </tr>`;
   }).join('') || `<tr><td colspan="5" class="muted">Sin recetas</td></tr>`;
@@ -3357,27 +3845,28 @@ function exportarPDFReceta(id){
     const costUnit = Number(m.costoUnit||0);
     const cost = costUnit * Number(it.cant||0);
     return `<tr>
-      <td>${m.nombre||'—'}</td>
-      <td>${it.cant}</td>
-      <td>${m.unidad||''}</td>
-      <td class="right">${costUnit? fmt(costUnit):''}</td>
-      <td class="right">${cost? fmt(cost):''}</td>
+      <td>${escapeHtml(m.nombre||'—')}</td>
+      <td>${escapeHtml(it.cant)}</td>
+      <td>${escapeHtml(m.unidad||'')}</td>
+      <td class="right">${escapeHtml(costUnit? fmt(costUnit):'')}</td>
+      <td class="right">${escapeHtml(cost? fmt(cost):'')}</td>
     </tr>`;
   }).join('') || `<tr><td colspan="5" class="muted">Sin insumos</td></tr>`;
   const indirectosRows = (rc.indirectos||[]).map(ci=>`<tr>
-    <td>${ci.concepto||''}</td>
-    <td class="right">${ci.monto? fmt(ci.monto):''}</td>
+    <td>${escapeHtml(ci.concepto||'')}</td>
+    <td class="right">${escapeHtml(ci.monto? fmt(ci.monto):'')}</td>
   </tr>`).join('') || `<tr><td colspan="2" class="muted">Sin costos indirectos</td></tr>`;
   const abc = detail.abc || {};
-  const abcCats = (rc.abc?.categories||[]).join(', ');
-  const brand = (DB.config && DB.config.nombreNegocio) ? DB.config.nombreNegocio : 'Panera Signature';
-  const uv = rc.uv || 'unidad';
-  const fecha = new Date().toLocaleString('es-MX');
+  const abcCats = escapeHtml((rc.abc?.categories||[]).join(', '));
+  const brand = escapeHtml((DB.config && DB.config.nombreNegocio) ? DB.config.nombreNegocio : 'Panera Signature');
+  const uv = escapeHtml(rc.uv || 'unidad');
+  const fecha = escapeHtml(new Date().toLocaleString('es-MX'));
+  const productName = escapeHtml(rc.producto || '');
   const html = `<!doctype html>
   <html lang="es">
   <head>
     <meta charset="utf-8">
-    <title>Receta ${rc.producto||''}</title>
+    <title>Receta ${productName}</title>
     <style>
       body{font-family:Arial,Helvetica,sans-serif;margin:28px;color:#111}
       h1,h2,h3{margin:0 0 8px}
@@ -3402,8 +3891,8 @@ function exportarPDFReceta(id){
       </div>
       <div class="meta">
         <div><b>Fecha:</b> ${fecha}</div>
-        <div><b>Producto:</b> ${rc.producto||''}</div>
-        <div><b>Rinde:</b> ${rinde} ${uv}</div>
+        <div><b>Producto:</b> ${productName}</div>
+        <div><b>Rinde:</b> ${escapeHtml(rinde)} ${uv}</div>
       </div>
     </div>
 
@@ -3442,12 +3931,12 @@ function exportarPDFReceta(id){
     <div class="section">
       <h3>Gastos ABC por tiempo</h3>
       <table class="summary">
-        <tr><td>Rango</td><td>${rc.abc?.from||''} a ${rc.abc?.to||''}</td></tr>
+        <tr><td>Rango</td><td>${escapeHtml(rc.abc?.from||'')} a ${escapeHtml(rc.abc?.to||'')}</td></tr>
         <tr><td>Categorías</td><td>${abcCats}</td></tr>
         <tr><td>Gastos ABC del rango</td><td class="right">${fmt(abc.expensesTotal||0)}</td></tr>
-        <tr><td>Minutos productivos</td><td class="right">${abc.productiveMinutes||0}</td></tr>
+        <tr><td>Minutos productivos</td><td class="right">${escapeHtml(abc.productiveMinutes||0)}</td></tr>
         <tr><td>Costo por minuto</td><td class="right">${fmt(abc.costPerMinute||0)}</td></tr>
-        <tr><td>Minutos receta</td><td class="right">${abc.recipeMinutes||0}</td></tr>
+        <tr><td>Minutos receta</td><td class="right">${escapeHtml(abc.recipeMinutes||0)}</td></tr>
         <tr><td><b>ABC aplicado</b></td><td class="right"><b>${fmt(abc.recipeCost||0)}</b></td></tr>
       </table>
     </div>
@@ -3455,9 +3944,9 @@ function exportarPDFReceta(id){
     <div class="section">
       <h3>Notas</h3>
       <table class="summary">
-        <tr><td>Alergias</td><td>${rc.alergias||''}</td></tr>
-        <tr><td>Preparado por</td><td>${rc.prep||''} ${rc.prepPuesto? ' / '+rc.prepPuesto:''}</td></tr>
-        <tr><td>Aprobado por</td><td>${rc.apr||''} ${rc.aprPuesto? ' / '+rc.aprPuesto:''}</td></tr>
+        <tr><td>Alergias</td><td>${escapeHtml(rc.alergias||'')}</td></tr>
+        <tr><td>Preparado por</td><td>${escapeHtml(rc.prep||'')} ${rc.prepPuesto? ' / '+escapeHtml(rc.prepPuesto):''}</td></tr>
+        <tr><td>Aprobado por</td><td>${escapeHtml(rc.apr||'')} ${rc.aprPuesto? ' / '+escapeHtml(rc.aprPuesto):''}</td></tr>
       </table>
     </div>
   </body>

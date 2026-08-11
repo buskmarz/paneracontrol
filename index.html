@@ -6,8 +6,6 @@
 <title>Panera · Control de Pasteles</title>
 
 <meta name="theme-color" content="#2B4E59">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="icon" href="./assets/logo-panera.png">
 <script>
 // Pre-aplicar tema antes del CSS para evitar parpadeo
@@ -17,338 +15,10 @@
 }catch(e){} })();
 </script>
 
-<!-- Fuentes y Chart.js (CDN) -->
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;800&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
-
-<style>
-  :root{
-    --p-light:#E6E6E6; --p-sky:#C3D8E0; --p-blue:#66B6CC; --p-deep:#2B4E59; --p-gray:#819DA6; --ink:#1f2937; --bg:#f7fafc;
-    --ok:#16a34a; --warn:#f59e0b; --err:#dc2626; --shadow:0 6px 20px rgba(0,0,0,.08);
-    --envio-ring-1:#CDE7EF; --envio-ring-2:#A9D6E6; --envio-ring-3:#86C3DB; --envio-ring-4:#5FA9C8; --envio-ring-5:#2B4E59;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:Montserrat,system-ui,Segoe UI,Roboto,Helvetica,Arial}
-  header{background:linear-gradient(135deg,var(--p-blue),var(--p-deep));color:#fff;padding:20px 16px}
-  header h1{margin:0;font-size:22px;letter-spacing:.3px}
-  header small{opacity:.9}
-  .wrap{max-width:1200px;margin:0 auto;padding:16px}
-
-  /* NAV & CARDS */
-  nav{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px}
-  nav button{border:0;padding:10px 12px;background:#fff;border-radius:10px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.06);cursor:pointer;transition:all .15s ease}
-  nav button.active{background:var(--p-blue);color:#fff}
-  section.card{background:#fff;border:1px solid var(--p-light);border-radius:14px;padding:14px;box-shadow:var(--shadow);margin:0 0 16px}
-  /* Solo las secciones de pestaña llevan esta clase: */
-  .tab{ }
-
-  /* LAYOUT UTILS */
-  .grid{display:grid;gap:12px}
-  .g2{grid-template-columns:1fr 1fr}
-  .g3{grid-template-columns:repeat(3,1fr)}
-  .g4{grid-template-columns:repeat(4,1fr)}
-  .g5{grid-template-columns:repeat(5,1fr)}
-  .g6{grid-template-columns:repeat(6,1fr)}
-  .g7{grid-template-columns:repeat(7,1fr)}
-  .flex{display:flex;gap:10px;align-items:center}
-  .hidden{display:none}
-  .hr{height:1px;background:var(--p-light);margin:10px 0}
-  .narrow{max-width:800px}
-
-  /* FORMS & TABLES */
-  label{font-size:12px;color:#4b5563;font-weight:600;display:block;margin-bottom:4px}
-  input,select,textarea{width:100%;padding:10px;border:1px solid var(--p-light);border-radius:10px;background:#fff;transition:border-color .15s ease, box-shadow .15s ease}
-  input::placeholder, textarea::placeholder{color:#9aa4ae}
-  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--p-blue);box-shadow:0 0 0 3px rgba(102,182,204,.25)}
-  select[required] option[disabled]{color:#9aa4ae}
-  nav button:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.08)}
-  input[type="number"]{text-align:right}
-  table{width:100%;border-collapse:collapse}
-  th,td{padding:8px;border-bottom:1px dashed var(--p-light);font-size:14px}
-  th{background:#f3f6f8;text-align:left}
-  .right{text-align:right}
-  .muted{color:#6b7280}
-  tbody tr:hover{background:#f9fbfe}
-
-  /* QUICK LISTS / BADGES */
-  .list{list-style:none;padding:0;margin:0}
-  .list li{padding:8px 0;border-bottom:1px dashed var(--p-light);display:flex;gap:8px;justify-content:space-between;align-items:center}
-  .badge{display:inline-block;padding:3px 8px;border-radius:999px;background:#eef2f7;color:#0f172a;font-size:12px}
-
-  /* BUTTONS & BADGES */
-  .btn{border:0;border-radius:10px;padding:10px 12px;font-weight:700;cursor:pointer;transition:transform .08s ease, box-shadow .15s ease}
-  .btn.primary{background:var(--p-deep);color:#fff}
-  .btn.alt{background:var(--p-blue);color:#fff}
-  .btn.ghost{background:transparent;border:2px solid var(--p-deep);color:var(--p-deep)}
-  .btn:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
-  .tag{font-size:12px;background:var(--p-sky);color:#0f172a;padding:3px 8px;border-radius:999px}
-  .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#eef6f9}
-
-  /* Envio por anillos */
-  .envio-grid{display:grid;gap:12px;grid-template-columns:1.1fr .9fr}
-  .envio-grid-2{display:grid;gap:12px;grid-template-columns:1fr 1fr}
-  .envio-ring-wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
-  .envio-rings{width:100%;max-width:260px;aspect-ratio:1/1;border-radius:16px;background:radial-gradient(closest-side, rgba(102,182,204,.12), transparent 70%);display:flex;align-items:center;justify-content:center}
-  #envio-ring-svg{width:100%;height:100%}
-  .envio-legend{width:100%}
-  .envio-legend li{border-bottom:0;padding:6px 0;justify-content:flex-start;gap:10px}
-  .envio-dot{width:12px;height:12px;border-radius:999px;flex:0 0 auto}
-  .envio-dot.special{background:transparent;border:2px dashed var(--p-gray)}
-  .envio-legend-text{display:flex;flex-direction:column;gap:2px}
-  .envio-legend .right{margin-left:auto;font-weight:700}
-  #envio-zonas-table input{padding:6px;border-radius:8px}
-  .envio-metrics{grid-template-columns:repeat(3,1fr)}
-  .envio-metrics div{background:#ffffff;border:2px solid var(--p-deep);box-shadow:0 6px 18px rgba(0,0,0,.08)}
-  .envio-metrics b{color:var(--p-deep);text-transform:uppercase;letter-spacing:.4px}
-  .envio-metrics .right{font-size:18px;font-weight:800;color:var(--ink)}
-  .envio-metrics div div{min-height:22px}
-
-  @media (max-width: 900px){
-    .envio-grid, .envio-grid-2{grid-template-columns:1fr}
-    .envio-legend li{flex-wrap:wrap}
-    .envio-legend .right{margin-left:0}
-  }
-
-  /* TOTALS & KPI */
-  .totals{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-  .totals div{background:#f9fbfc;border:1px solid var(--p-light);border-radius:10px;padding:10px}
-  .totals.compact div{padding:6px;font-size:13px}
-  .totals.compact b{font-size:16px}
-  .totals.compact input{padding:6px;font-size:13px;max-width:140px}
-
-  .kpi{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
-  .kpi .box{background:#fff;border:1px solid var(--p-light);border-radius:12px;padding:12px}
-  .kpi .box h3{margin:0 0 6px;font-size:13px;color:#475569}
-  .kpi .box b{font-size:18px}
-
-  /* HEADER BRANDING */
-  .brand{display:flex;align-items:center;gap:12px}
-  #logo-panera{height:44px;max-height:44px;width:auto;display:block}
-
-  /* STICKY ACTIONS (venta) */
-  .sticky-actions{position:sticky;bottom:0;background:#fff;padding:12px;border-top:1px solid var(--p-light);z-index:10}
-
-  footer{color:var(--p-gray);text-align:center;font-size:12px;margin:10px 0 30px}
-
-  /* Extras (modal) */
-  .modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:9999}
-  .modal .box{background:#fff;border-radius:14px;max-width:800px;width:92vw;padding:16px;border:1px solid var(--p-light);box-shadow:0 10px 30px rgba(0,0,0,.18)}
-
-  /* AUTOCOMPLETE CLIENTE */
-  .ac-wrap{position:relative}
-  .ac-list{position:absolute;z-index:50;top:100%;left:0;right:0;background:#fff;border:1px solid var(--p-light);border-radius:10px;box-shadow:0 10px 20px rgba(0,0,0,.08);max-height:220px;overflow:auto;margin-top:4px}
-  .ac-item{padding:8px 10px;cursor:pointer;display:flex;justify-content:space-between;gap:10px}
-  .ac-item:hover{background:#f7fafc}
-  .ac-name{font-weight:700}
-  .ac-meta{font-size:12px;color:#64748b;text-align:right}
-
-  /* Toasts */
-  .toast-wrap{position:fixed;right:14px;bottom:14px;display:flex;flex-direction:column;gap:8px;z-index:99999}
-  .toast{background:#fff;border:1px solid var(--p-light);box-shadow:var(--shadow);padding:10px 12px;border-radius:10px;min-width:220px;max-width:360px}
-  .toast.ok{border-left:4px solid var(--ok)}
-  .toast.warn{border-left:4px solid var(--warn)}
-  .toast.err{border-left:4px solid var(--err)}
-  .status-ok{color:var(--ok)}
-  .status-error{color:var(--err)}
-
-  /* Auth */
-  body.auth-locked{overflow:hidden}
-  .auth-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;z-index:10000;
-    background:
-      radial-gradient(700px 220px at 8% 0%, rgba(102,182,204,.25), transparent 60%),
-      radial-gradient(700px 260px at 92% 8%, rgba(43,78,89,.25), transparent 60%),
-      var(--bg);
-  }
-  .auth-screen.hidden{display:none}
-  .auth-card{background:#fff;border:1px solid var(--p-light);border-radius:16px;box-shadow:var(--shadow);padding:18px;width:min(420px,92vw)}
-  .auth-brand{display:flex;gap:12px;align-items:center;margin-bottom:8px}
-  .auth-logo{height:38px;width:auto;display:block}
-  .auth-error{min-height:16px;font-size:12px;color:var(--err)}
-  .auth-actions{display:flex;gap:10px;align-items:center;justify-content:flex-end}
-  /* ===== Enhancements (UI Pro + Dark Mode) ===== */
-  /* Header sticky and layout */
-  header{position:sticky;top:0;z-index:100}
-  header .wrap{display:flex;align-items:center;justify-content:space-between}
-  /* Dark theme palette overrides */
-  html[data-theme="dark"]{
-    --bg:#0b1220; --ink:#e5e7eb; --p-light:#1f2937; --p-sky:#0f2030; --p-blue:#4ba9c4; --p-deep:#18323c; --p-gray:#9aa4ae;
-    --ok:#22c55e; --warn:#fbbf24; --err:#ef4444; --shadow:0 6px 20px rgba(0,0,0,.40);
-  }
-  /* Cards, tables, controls in dark */
-  html[data-theme="dark"] section.card{background:#0f172a;border-color:#1f2937}
-  html[data-theme="dark"] input, html[data-theme="dark"] select, html[data-theme="dark"] textarea{background:#0b1320;border-color:#1f2937;color:var(--ink)}
-  html[data-theme="dark"] nav button{background:#0f172a;border:1px solid #1f2937;color:var(--ink);box-shadow:none}
-  /* Toolbar */
-  .toolbar{display:flex;gap:8px;flex-wrap:wrap}
-  /* Small buttons */
-  .btn.sm{padding:6px 8px;font-size:12px;border-radius:8px}
-  /* Sun/Moon icons toggle */
-  #theme-toggle #icon-sun{display:inline-block}
-  #theme-toggle #icon-moon{display:none}
-  html[data-theme="dark"] #theme-toggle #icon-sun{display:none}
-  html[data-theme="dark"] #theme-toggle #icon-moon{display:inline-block}
-  /* Table polish */
-  th{position:sticky;top:0;z-index:1;background:#f3f6f8}
-  html[data-theme="dark"] th{background:#0f2030}
-  tbody tr:nth-child(odd){background:rgba(0,0,0,.02)}
-  html[data-theme="dark"] tbody tr:nth-child(odd){background:rgba(255,255,255,.02)}
-  html[data-theme="dark"] tbody tr:hover{background:#0e1a26}
-  /* Misc */
-  html[data-theme="dark"] .badge{background:#102131;color:#e2e8f0}
-  html[data-theme="dark"] .tag{background:#102131;color:#e2e8f0}
-  html[data-theme="dark"] .pill{background:#0f2030;color:#e2e8f0}
-  html[data-theme="dark"] .sticky-actions{background:#0f172a;border-color:#1f2937}
-  html[data-theme="dark"] .modal .box{background:#0f172a;border-color:#1f2937}
-  html[data-theme="dark"] .ac-list{background:#0f172a;border-color:#1f2937}
-  html[data-theme="dark"] .ac-item:hover{background:#0e1a26}
-  html[data-theme="dark"] .toast{background:#0f172a;border-color:#1f2937;color:var(--ink)}
-  html[data-theme="dark"] .auth-card{background:#0f172a;border-color:#1f2937}
-  html[data-theme="dark"] .envio-rings{background:radial-gradient(closest-side, rgba(102,182,204,.18), transparent 70%)}
-  html[data-theme="dark"] .envio-metrics div{background:#0b1320;border-color:#4ba9c4}
-  html[data-theme="dark"] .envio-metrics b{color:#8bd0e1}
-  html[data-theme="dark"] .envio-metrics .right{color:#f8fafc}
-
-  /* B2B integrado */
-  .b2b-main{
-    display:grid;
-    gap:14px;
-  }
-  .b2b-hero{
-    display:grid;
-    grid-template-columns:minmax(0,1fr) minmax(260px,380px);
-    gap:16px;
-    align-items:stretch;
-  }
-  .b2b-hero-copy{
-    min-height:260px;
-    display:flex;
-    flex-direction:column;
-    justify-content:center;
-    gap:12px;
-    padding:4px;
-  }
-  .b2b-hero-copy h2{
-    margin:0;
-    font-size:clamp(28px,4vw,48px);
-    line-height:1.04;
-    letter-spacing:0;
-  }
-  .b2b-hero-copy p{margin:0;color:#53616a;line-height:1.55}
-  .b2b-actions{display:flex;flex-wrap:wrap;gap:10px}
-  .b2b-feature{
-    position:relative;
-    overflow:hidden;
-    border-radius:12px;
-    border:1px solid var(--p-light);
-    background:linear-gradient(150deg,#f7eee2,#dceff4);
-    min-height:260px;
-  }
-  .b2b-feature img{width:100%;height:100%;min-height:260px;object-fit:cover}
-  .b2b-note{
-    position:absolute;
-    left:12px;
-    right:12px;
-    bottom:12px;
-    display:flex;
-    justify-content:space-between;
-    gap:10px;
-    padding:10px 12px;
-    border-radius:10px;
-    background:rgba(255,255,255,.88);
-    border:1px solid rgba(255,255,255,.74);
-    backdrop-filter:blur(12px);
-    font-size:13px;
-  }
-  .b2b-catalog{
-    display:grid;
-    grid-template-columns:repeat(3,minmax(0,1fr));
-    gap:12px;
-  }
-  .b2b-product{
-    overflow:hidden;
-    border:1px solid var(--p-light);
-    border-radius:12px;
-    background:#fff;
-    box-shadow:0 8px 24px rgba(43,78,89,.06);
-  }
-  .b2b-product img{
-    width:100%;
-    aspect-ratio:16/10;
-    object-fit:cover;
-    background:#f5eee6;
-  }
-  .b2b-product-body{padding:12px}
-  .b2b-product-body h3{margin:0 0 10px;font-size:16px;line-height:1.25}
-  .b2b-prices{display:grid;gap:6px;margin-bottom:10px}
-  .b2b-price-row{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:10px;
-    padding:7px 8px;
-    border-radius:9px;
-    background:#f7f4ef;
-    color:#485157;
-    font-size:12px;
-  }
-  .b2b-price-row strong{color:var(--ink)}
-  .b2b-order-layout{
-    display:grid;
-    grid-template-columns:minmax(0,1fr) 340px;
-    gap:14px;
-    align-items:start;
-  }
-  .b2b-selected{display:grid;gap:8px}
-  .b2b-selected-item{
-    display:flex;
-    justify-content:space-between;
-    gap:10px;
-    align-items:center;
-    border:1px solid var(--p-light);
-    border-radius:10px;
-    padding:9px 10px;
-    background:#fff;
-    font-size:13px;
-  }
-  .b2b-status{min-height:20px;margin:8px 0 0;color:#6b7280;font-size:13px}
-  .b2b-status.error{color:var(--err)}
-  html[data-theme="dark"] .b2b-hero-copy p{color:#b9c3cc}
-  html[data-theme="dark"] .b2b-feature{background:linear-gradient(150deg,#172233,#0f2831);border-color:#1f2937}
-  html[data-theme="dark"] .b2b-note{background:rgba(15,23,42,.86);border-color:#1f2937}
-  html[data-theme="dark"] .b2b-product,
-  html[data-theme="dark"] .b2b-selected-item{background:#0f172a;border-color:#1f2937}
-  html[data-theme="dark"] .b2b-price-row{background:#111d2a;color:#d4dce3}
-  html[data-theme="dark"] .b2b-price-row strong{color:#f8fafc}
-
-  @media (max-width: 900px){
-    .b2b-hero,.b2b-catalog,.b2b-order-layout{grid-template-columns:1fr}
-    .b2b-order-layout .card:last-child{order:-1}
-  }
-  @media (max-width: 560px){
-    .wrap{padding:10px}
-    header{padding:14px 10px}
-    header .wrap{align-items:flex-start;gap:10px}
-    header h1{font-size:18px}
-    #logo-panera{height:36px}
-    .g2,.g3,.g4,.g5,.g6,.g7,.kpi,.totals,.envio-metrics{grid-template-columns:1fr}
-    nav{gap:6px}
-    nav button{flex:1 1 calc(50% - 6px);min-height:42px}
-    .btn{min-height:40px}
-    .sticky-actions{position:static}
-    table{display:block;overflow-x:auto;white-space:nowrap}
-    th,td{font-size:13px}
-    .b2b-actions .btn{width:100%}
-    .b2b-note{position:static;margin:10px;background:#fff}
-    .b2b-feature{display:flex;flex-direction:column}
-  }
-  @media (min-width:561px) and (max-width:900px){
-    .g4,.g5,.g6,.g7{grid-template-columns:repeat(2,minmax(0,1fr))}
-    .kpi{grid-template-columns:repeat(3,minmax(0,1fr))}
-  }
-</style>
+<link rel="stylesheet" href="./styles.css">
 </head>
-<body>
-<div id="auth-screen" class="auth-screen hidden" aria-hidden="true">
+<body class="auth-locked">
+<div id="auth-screen" class="auth-screen" aria-hidden="false">
   <div class="auth-card">
     <div class="auth-brand">
       <img class="auth-logo" src="./assets/logo-panera.png" alt="Panera">
@@ -359,11 +29,11 @@
     </div>
     <form id="auth-form" class="grid" style="gap:10px">
       <div>
-        <label>Usuario</label>
+        <label for="auth-user">Usuario</label>
         <input id="auth-user" name="username" autocomplete="username" placeholder="Usuario">
       </div>
       <div>
-        <label>Contrasena</label>
+        <label for="auth-pass">Contrasena</label>
         <input id="auth-pass" type="password" name="password" autocomplete="current-password" placeholder="Contrasena">
       </div>
       <div id="auth-error" class="auth-error" role="alert"></div>
@@ -383,6 +53,8 @@
       </div>
     </div>
     <div class="toolbar">
+      <span id="sync-status" class="sync-status" role="status" aria-live="polite">Listo</span>
+      <button id="quick-capture-trigger" class="btn primary sm" type="button" onclick="openQuickCapture()">+ Capturar</button>
       <button id="theme-toggle" class="btn ghost sm" title="Cambiar tema" onclick="toggleTheme()" aria-label="Cambiar tema">
         <svg id="icon-sun" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6.76 4.84l-1.8-1.79L3.17 4.84l1.79 1.79 1.8-1.79zM1 13h3v-2H1v2zm10 10h2v-3h-2v3zM4.22 19.78l1.79-1.79-1.8-1.79-1.79 1.79 1.8 1.79zM20 1h-2v3h2V1zM19.78 19.78l1.79-1.79-1.8-1.79-1.79 1.79 1.8 1.79zM17.24 4.84l1.79-1.79-1.8-1.79-1.79 1.79 1.8 1.79zM23 11h-3v2h3v-2zM12 6a6 6 0 100 12A6 6 0 0012 6z"/></svg>
         <svg id="icon-moon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M21.64 13a9 9 0 01-11.3-11.3A9 9 0 1021.64 13z"/></svg>
@@ -392,26 +64,27 @@
   </div>
 </header>
 
-<div class="wrap">
-  <nav>
-    <button class="active" data-tab="tab-dashboard">Dashboard</button>
-    <button data-tab="tab-ventas">Ventas</button>
-    <button data-tab="tab-clientes">Clientes</button>
-    <button data-tab="tab-b2b">B2B</button>
-    <button data-tab="tab-productos">Productos</button>
-    <button data-tab="tab-cotizador">Cotizador</button>
-    <button data-tab="tab-gastos">Gastos</button>
-    <button data-tab="tab-documentos">Documentos</button>
-    <button data-tab="tab-finanzas">Finanzas</button>
-    <button data-tab="tab-reportes">Reportes</button>
-    <button data-tab="tab-config">Configuración</button>
-    <button data-tab="tab-calendario">Calendario</button>
+<main class="wrap app-shell">
+  <nav aria-label="Módulos del sistema" role="tablist">
+    <button class="active" data-tab="tab-dashboard" role="tab" aria-selected="true">Dashboard</button>
+    <button data-tab="tab-ventas" role="tab" aria-selected="false">Ventas</button>
+    <button data-tab="tab-clientes" role="tab" aria-selected="false">Clientes</button>
+    <button data-tab="tab-b2b" role="tab" aria-selected="false">B2B</button>
+    <button data-tab="tab-productos" role="tab" aria-selected="false">Productos</button>
+    <button data-tab="tab-cotizador" role="tab" aria-selected="false">Cotizador</button>
+    <button data-tab="tab-gastos" role="tab" aria-selected="false">Gastos</button>
+    <button data-tab="tab-documentos" role="tab" aria-selected="false">Documentos</button>
+    <button data-tab="tab-finanzas" role="tab" aria-selected="false">Finanzas</button>
+    <button data-tab="tab-reportes" role="tab" aria-selected="false">Reportes</button>
+    <button data-tab="tab-config" role="tab" aria-selected="false">Configuración</button>
+    <button data-tab="tab-calendario" role="tab" aria-selected="false">Calendario</button>
   </nav>
 
   <!-- DASHBOARD -->
   <section id="tab-dashboard" class="tab">
     <section class="card">
       <div class="flex" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <button class="btn alt" type="button" onclick="openQuickCapture('venta')">Nueva captura</button>
         <button class="btn primary" onclick="generarCorteRapidoHoy()">Corte rápido (hoy)</button>
         <button class="btn ghost" onclick="descargarBackupRapido()">Backup rápido (.json)</button>
       </div>
@@ -585,7 +258,6 @@
         </div>
         <div class="flex" style="align-items:flex-end">
           <button class="btn primary" onclick="addItem()">Agregar a venta</button>
-          <span class="muted">⌘K para búsqueda global</span>
         </div>
       </div>
 
@@ -610,7 +282,7 @@
       </div>
 
       <div class="grid g2" style="margin-top:12px">
-        <section class="card">
+        <section class="subsection">
           <h3>Pagos</h3>
           <div class="grid g3" style="margin-bottom:8px">
             <div>
@@ -646,7 +318,7 @@
           </div>
         </section>
 
-        <section class="card">
+        <section class="subsection">
           <h3>Entrega</h3>
           <div class="grid g2">
             <div>
@@ -850,6 +522,11 @@
 
   <!-- COTIZADOR -->
   <section id="tab-cotizador" class="tab hidden">
+    <div class="section-tabs" aria-label="Secciones del cotizador">
+      <button type="button" onclick="scrollToSection('envio-cotizador')">Envío</button>
+      <button type="button" onclick="scrollToSection('costeo-materiales')">Insumos</button>
+      <button type="button" onclick="scrollToSection('costeo-recetas')">Recetas y ABC</button>
+    </div>
     <section class="card" id="envio-cotizador">
       <div class="flex" style="justify-content:space-between; align-items:center; flex-wrap:wrap">
         <div>
@@ -959,7 +636,7 @@
       <div id="envio-bulk-output"></div>
     </section>
 
-    <section class="card">
+    <section class="card" id="costeo-materiales">
       <div class="flex" style="justify-content:space-between; align-items:center">
         <h3 style="margin:0">Materiales (insumos)</h3>
         <button class="btn alt" onclick="cargarDemoConejitoMini()">Cargar demo “Conejito mini”</button>
@@ -1007,7 +684,7 @@
       </table>
     </section>
 
-    <section class="card">
+    <section class="card" id="costeo-recetas">
       <h3>Recetas</h3>
       <div class="grid g4">
         <div><label>Producto</label><input id="ct-r-nombre" placeholder="Ej. Pastel Conejito CH"></div>
@@ -1036,7 +713,7 @@
         <div><b>Indirectos</b><div id="ct-ci-total" class="right"></div></div>
       </div>
 
-      <section class="card" style="margin-top:8px">
+      <section class="subsection" style="margin-top:8px">
         <h3>Costos indirectos</h3>
         <div class="grid g3">
           <div><label>Concepto</label><input id="ct-ci-conc" placeholder="Ej. Gas, luz, m.o."></div>
@@ -1049,7 +726,7 @@
         </table>
       </section>
 
-      <section class="card" style="margin-top:8px">
+      <section class="subsection" style="margin-top:8px">
         <h3>Gastos ABC por tiempo</h3>
         <div class="grid g4">
           <div><label>Desde</label><input id="ct-abc-desde" type="date" oninput="updateAbcProductiveMinutes(); recalcReceta()"></div>
@@ -1082,7 +759,7 @@
         <div><b>Margen neto</b><div id="ct-r-margen-neto" class="right"></div></div>
         <div><b>Costo marginal (%)</b><div id="ct-r-costo-marg" class="right"></div></div>
       </div>
-      <div style="margin-top:8px" class="card"><h3>Distribución de costo</h3><canvas id="ct-ch-distrib"></canvas></div>
+      <div style="margin-top:8px" class="subsection"><h3>Distribución de costo</h3><canvas id="ct-ch-distrib"></canvas></div>
       <div class="toolbar" style="margin-top:8px">
         <button class="btn primary" onclick="guardarReceta()">Guardar receta</button>
         <button class="btn ghost" onclick="nuevaReceta()">Limpiar receta</button>
@@ -1374,7 +1051,7 @@
         <div class="flex" style="align-items:flex-end"><button class="btn alt" onclick="seedMarketingCalendar()">Cargar calendario marketing</button></div>
       </div>
       <div class="grid g2" style="margin-top:12px">
-        <section class="card">
+        <section class="subsection">
           <div class="flex" style="justify-content:space-between;align-items:center">
             <h3 style="margin:0" id="cal-title">Vista mensual</h3>
             <div class="flex">
@@ -1384,7 +1061,7 @@
           </div>
           <div id="cal-grid" class="grid g7" style="margin-top:8px"></div>
         </section>
-        <section class="card">
+        <section class="subsection">
           <h3>Próximos eventos</h3>
           <table id="tabla-eventos">
             <thead><tr><th>Fecha</th><th>Evento</th><th>Relevante</th><th class="right">Días</th><th>Acciones</th></tr></thead>
@@ -1396,6 +1073,82 @@
   </section>
 
   <footer><span id="footer-brand">Panera Signature</span>.</footer>
+</main>
+
+<div id="quick-capture" class="modal quick-capture hidden" role="dialog" aria-modal="true" aria-labelledby="quick-capture-title" aria-hidden="true">
+  <div class="quick-sheet" role="document">
+    <div class="quick-head">
+      <div>
+        <h2 id="quick-capture-title">Captura rápida</h2>
+        <p id="quick-capture-subtitle">Registra una venta sin salir de tu módulo actual.</p>
+      </div>
+      <button class="icon-btn" type="button" onclick="closeQuickCapture()" aria-label="Cerrar captura">×</button>
+    </div>
+
+    <div class="quick-types" role="tablist" aria-label="Tipo de captura">
+      <button type="button" data-quick-type="venta" role="tab" aria-selected="true" onclick="setQuickCaptureType('venta')">Venta</button>
+      <button type="button" data-quick-type="gasto" role="tab" aria-selected="false" onclick="setQuickCaptureType('gasto')">Gasto</button>
+      <button type="button" data-quick-type="cliente" role="tab" aria-selected="false" onclick="setQuickCaptureType('cliente')">Cliente</button>
+      <button type="button" data-quick-type="evento" role="tab" aria-selected="false" onclick="setQuickCaptureType('evento')">Evento</button>
+      <button type="button" data-quick-type="material" role="tab" aria-selected="false" onclick="setQuickCaptureType('material')">Insumo</button>
+    </div>
+
+    <form id="quick-venta" class="quick-form" data-quick-panel="venta" onsubmit="saveQuickSale(event)">
+      <div class="grid g2">
+        <div class="field-wide"><label for="qv-producto">Producto y variante</label><input id="qv-producto" list="qv-productos-list" autocomplete="off" placeholder="Buscar producto o variante" required><datalist id="qv-productos-list"></datalist></div>
+        <div><label for="qv-cantidad">Cantidad</label><input id="qv-cantidad" type="number" min="1" step="1" value="1" required></div>
+        <div><label for="qv-cliente">Cliente</label><input id="qv-cliente" list="dl-clientes" placeholder="Mostrador"></div>
+        <div><label for="qv-canal">Canal</label><select id="qv-canal" required></select></div>
+        <div><label for="qv-envio">Entrega</label><select id="qv-envio" required></select></div>
+        <div><label for="qv-estatus">Pago</label><select id="qv-estatus"><option value="por_cobrar">Por cobrar</option><option value="pagado">Pagado</option></select></div>
+        <div><label for="qv-metodo">Método</label><select id="qv-metodo"></select></div>
+        <div><label for="qv-fecha">Fecha</label><input id="qv-fecha" type="datetime-local" required></div>
+      </div>
+      <div class="quick-total"><span>Total</span><strong id="qv-total">$0.00</strong></div>
+      <div class="quick-actions"><button class="btn ghost" type="button" onclick="openFullCapture('tab-ventas')">Formulario completo</button><button class="btn primary" type="submit">Guardar venta</button></div>
+    </form>
+
+    <form id="quick-gasto" class="quick-form hidden" data-quick-panel="gasto" onsubmit="saveQuickExpense(event)">
+      <div class="grid g2">
+        <div><label for="qg-fecha">Fecha</label><input id="qg-fecha" type="date" required></div>
+        <div><label for="qg-categoria">Categoría</label><select id="qg-categoria" required></select></div>
+        <div><label for="qg-monto">Monto</label><input id="qg-monto" type="number" min="0.01" step="0.01" required></div>
+        <div><label for="qg-metodo">Método</label><select id="qg-metodo" required></select></div>
+        <div><label for="qg-proveedor">Proveedor</label><input id="qg-proveedor" list="dl-proveedores"></div>
+        <div><label for="qg-descripcion">Descripción</label><input id="qg-descripcion" placeholder="Concepto del gasto"></div>
+      </div>
+      <div class="quick-actions"><button class="btn ghost" type="button" onclick="openFullCapture('tab-gastos')">Formulario completo</button><button class="btn primary" type="submit">Guardar gasto</button></div>
+    </form>
+
+    <form id="quick-cliente" class="quick-form hidden" data-quick-panel="cliente" onsubmit="saveQuickClient(event)">
+      <div class="grid g2">
+        <div><label for="qc-nombre">Nombre</label><input id="qc-nombre" required></div>
+        <div><label for="qc-telefono">Teléfono</label><input id="qc-telefono" inputmode="tel" autocomplete="tel"></div>
+        <div class="field-wide"><label for="qc-direccion">Dirección</label><input id="qc-direccion" autocomplete="street-address"></div>
+        <div class="field-wide"><label for="qc-notas">Notas</label><input id="qc-notas"></div>
+      </div>
+      <div class="quick-actions"><button class="btn ghost" type="button" onclick="openFullCapture('tab-clientes')">Ver clientes</button><button class="btn primary" type="submit">Guardar cliente</button></div>
+    </form>
+
+    <form id="quick-evento" class="quick-form hidden" data-quick-panel="evento" onsubmit="saveQuickEvent(event)">
+      <div class="grid g2">
+        <div class="field-wide"><label for="qe-nombre">Evento</label><input id="qe-nombre" required></div>
+        <div><label for="qe-fecha">Fecha</label><input id="qe-fecha" type="date" required></div>
+        <div><label for="qe-relevante">Relevancia</label><select id="qe-relevante"><option value="no">Normal</option><option value="si">Relevante</option></select></div>
+      </div>
+      <div class="quick-actions"><button class="btn ghost" type="button" onclick="openFullCapture('tab-calendario')">Ver calendario</button><button class="btn primary" type="submit">Guardar evento</button></div>
+    </form>
+
+    <form id="quick-material" class="quick-form hidden" data-quick-panel="material" onsubmit="saveQuickMaterial(event)">
+      <div class="grid g2">
+        <div class="field-wide"><label for="qm-nombre">Nombre del insumo</label><input id="qm-nombre" required></div>
+        <div><label for="qm-unidad">Presentación</label><select id="qm-unidad" onchange="syncQuickMaterialUnit()"><option value="pieza">Pieza</option><option value="gramo">Gramo</option><option value="kilogramo">Kilogramo</option><option value="mililitro">Mililitro</option><option value="litro">Litro</option></select></div>
+        <div><label for="qm-contenido">Contenido</label><div class="input-pair"><input id="qm-contenido" type="number" min="0.01" step="0.01" required><select id="qm-contenido-unidad"></select></div></div>
+        <div><label for="qm-costo">Costo de presentación</label><input id="qm-costo" type="number" min="0.01" step="0.01" required></div>
+      </div>
+      <div class="quick-actions"><button class="btn ghost" type="button" onclick="openFullCapture('tab-cotizador', 'costeo-materiales')">Ver insumos</button><button class="btn primary" type="submit">Guardar insumo</button></div>
+    </form>
+  </div>
 </div>
 
 <script src="finance-core.js" defer></script>

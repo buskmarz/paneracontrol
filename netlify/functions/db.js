@@ -1,11 +1,13 @@
 const { getStore } = require("@netlify/blobs");
+const { isAuthorized } = require("./lib/session-auth");
 
 const STORE_NAME = "panera-db";
 const KEY = "db";
 
 const BASE_HEADERS = {
   "Content-Type": "application/json",
-  "Cache-Control": "no-store"
+  "Cache-Control": "no-store",
+  "X-Content-Type-Options": "nosniff"
 };
 
 function getStoreConfig(){
@@ -31,32 +33,8 @@ function openStore(){
   const hasInjected = !!(process.env.NETLIFY_BLOBS_URL && process.env.NETLIFY_BLOBS_TOKEN);
   if(hasInjected) return getStore(STORE_NAME);
   const cfg = getStoreConfig();
-  if(cfg) return getStore(STORE_NAME, cfg);
+  if(cfg) return getStore({ name:STORE_NAME, ...cfg });
   return null;
-}
-
-// PANERA_AUTH can be "panera:panque" or its base64 value.
-function normalizeAuth(event){
-  const auth = (event.headers.authorization || event.headers.Authorization || "").trim();
-  if(auth.startsWith("Basic ")) return auth.slice(6).trim();
-  const alt = (event.headers["x-panera-auth"] || event.headers["X-Panera-Auth"] || "").trim();
-  return alt || "";
-}
-function authMatches(incoming, expected){
-  if(!incoming) return false;
-  if(incoming === expected) return true;
-  try{
-    const decoded = Buffer.from(incoming, "base64").toString("utf8");
-    return decoded === expected;
-  }catch(e){
-    return false;
-  }
-}
-function isAuthorized(event){
-  const expected = process.env.PANERA_AUTH;
-  if(!expected) return true;
-  const incoming = normalizeAuth(event);
-  return authMatches(incoming, expected);
 }
 
 function jsonResponse(statusCode, payload, extraHeaders={}){
