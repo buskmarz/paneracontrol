@@ -35,6 +35,7 @@ exports.handler = async (event) => {
       const db = await readDb(store);
       return jsonResponse(200, { ok:true, db });
     }catch(e){
+      console.error("Panera db read failed", { error:String(e?.message || "unknown") });
       return jsonResponse(503, { ok:false, error:"blobs_unavailable" });
     }
   }
