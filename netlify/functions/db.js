@@ -24,6 +24,7 @@ exports.handler = async (event) => {
   try{
     store = await openStore();
   }catch(e){
+    console.error("Panera blob store open failed", { error:String(e?.message || "unknown") });
     return jsonResponse(503, { ok:false, error:"blobs_not_configured", hint:"Enable Netlify Blobs or set PANERA_BLOBS_SITE_ID/PANERA_BLOBS_TOKEN_2026." });
   }
   if(!store){
