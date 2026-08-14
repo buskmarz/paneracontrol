@@ -1,6 +1,6 @@
 const crypto = require("node:crypto");
 const { isAuthorized } = require("./lib/session-auth");
-const { openStore, readImportedSales, writeImportedSale, writeReconciliation } = require("./lib/db-store");
+const { openStore, readImportedSales, readImportedSale, writeImportedSale, writeReconciliation } = require("./lib/db-store");
 const { clean, sourceKey, validatePayload, normalizePayload, compareRevision } = require("./lib/pos-sale-contract");
 
 const HEADERS = { "Content-Type":"application/json", "Cache-Control":"no-store", "X-Content-Type-Options":"nosniff" };
@@ -37,14 +37,14 @@ exports.handler = async event=>{
   if(!store) return response(503, { ok:false, error:"blobs_not_configured" });
 
   if(event.httpMethod === "GET"){
-    const imported = await readImportedSales(store).catch(()=>null);
-    if(!imported) return response(503, { ok:false, error:"blobs_unavailable" });
     const params = event.queryStringParameters || {};
     const key = params.sourceOrderId ? `better-mood-pos:${clean(params.branchId).toLowerCase()}:${clean(params.sourceOrderId)}` : "";
     if(key){
-      const sale = imported.find(row=>sourceKey(row) === key) || null;
+      const sale = await readImportedSale(store, params.branchId, params.sourceOrderId).catch(()=>null);
       return response(sale ? 200 : 404, { ok:!!sale, sale:sale || null });
     }
+    const imported = await readImportedSales(store).catch(()=>null);
+    if(!imported) return response(503, { ok:false, error:"blobs_unavailable" });
     return response(200, {
       ok:true,
       summary:{
@@ -81,9 +81,8 @@ exports.handler = async event=>{
   if(body.dryRun === true) return response(200, { ok:true, dryRun:true, sourceKey:sourceKey(candidate), payloadHash:candidate.payloadHash });
 
   try{
-    const imported = await readImportedSales(store);
     const key = sourceKey(candidate);
-    const existing = imported.find(sale=>sourceKey(sale) === key) || null;
+    const existing = await readImportedSale(store, candidate.sourceBranchId, candidate.sourceOrderId);
     if(existing && existing.sourcePayloadHash && existing.sourcePayloadHash === candidate.sourcePayloadHash) return response(200, { ok:true, modified:false, action:"unchanged", sale:existing });
     if(existing && compareRevision(existing, candidate) < 0) return response(200, { ok:true, modified:false, action:"stale", sale:existing });
     const sale = {

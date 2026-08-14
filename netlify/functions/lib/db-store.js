@@ -63,6 +63,16 @@ async function readImportedSales(store){
   return Array.from(bySource.values());
 }
 
+async function readImportedSale(store, branchId, sourceOrderId){
+  const branch = String(branchId || "").trim().toLowerCase();
+  const order = encodeURIComponent(String(sourceOrderId || "").trim());
+  if(!branch || !order) return null;
+  const keys = await listKeys(store, `${POS_SALES_PREFIX}${branch}/${order}/`);
+  const records = (await Promise.all(keys.map(key=>store.get(key, { type:"json", consistency:"strong" }).catch(()=>null)))).filter(Boolean);
+  const { compareRevision } = require("./pos-sale-contract");
+  return records.reduce((current, record)=>!current || compareRevision(current, record) > 0 ? record : current, null);
+}
+
 function combineDbWithImports(rawDb, imported, reconciliation){
   const db = rawDb && typeof rawDb === "object" ? rawDb : {};
   const manualSales = (Array.isArray(db.ventas) ? db.ventas : []).filter(sale=>sale?.sourceSystem !== "better-mood-pos");
@@ -105,6 +115,6 @@ async function writeReconciliation(store, summary){
 
 module.exports = {
   KEY, STORE_NAME, POS_SALES_PREFIX, POS_RECONCILIATION_KEY,
-  openStore, readDb, readDbRaw, readImportedSales, combineDbWithImports,
+  openStore, readDb, readDbRaw, readImportedSales, readImportedSale, combineDbWithImports,
   importedSaleRecordKey, writeImportedSale, writeReconciliation
 };
