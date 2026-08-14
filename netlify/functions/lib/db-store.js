@@ -4,6 +4,7 @@ const POS_SALES_PREFIX = "integrations/better-pos-sales/";
 const POS_SALES_DELTA_PREFIX = "integrations/better-pos-sales-delta/";
 const POS_SALES_SNAPSHOT_KEY = "integrations/better-pos-sales-snapshot";
 const POS_RECONCILIATION_KEY = "integrations/better-pos-sales-reconciliation";
+const { sourceKey, compareRevision } = require("./pos-sale-contract");
 
 function getStoreConfig(){
   const siteID = String(
@@ -60,7 +61,6 @@ async function readImportedSales(store){
     .filter(key=>!coveredDeltaKeys.has(key));
   const records = (await Promise.all(keys.map(key=>store.get(key, { type:"json", consistency:"strong" }).catch(()=>null)))).filter(Boolean);
   const bySource = new Map();
-  const { sourceKey, compareRevision } = require("./pos-sale-contract");
   for(const record of [...snapshotSales, ...records]){
     const key = sourceKey(record);
     const current = bySource.get(key);
@@ -75,7 +75,6 @@ async function readImportedSale(store, branchId, sourceOrderId){
   if(!branch || !order) return null;
   const keys = await listKeys(store, `${POS_SALES_PREFIX}${branch}/${order}/`);
   const records = (await Promise.all(keys.map(key=>store.get(key, { type:"json", consistency:"strong" }).catch(()=>null)))).filter(Boolean);
-  const { compareRevision } = require("./pos-sale-contract");
   return records.reduce((current, record)=>!current || compareRevision(current, record) > 0 ? record : current, null);
 }
 
