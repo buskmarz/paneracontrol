@@ -511,6 +511,16 @@ function applyRemote(remote){
   normalizeDB();
   saveDB({ skipRemote: true, skipMeta: true });
 }
+function mergeRemotePosSales(remote){
+  const imported = Array.isArray(remote?.ventas) ? remote.ventas.filter(v=>v?.sourceSystem === "better-mood-pos") : [];
+  const manual = Array.isArray(DB.ventas) ? DB.ventas.filter(v=>v?.sourceSystem !== "better-mood-pos") : [];
+  DB.ventas = [...imported, ...manual];
+  if(remote?.meta?.posIntegration){
+    DB.meta = { ...(DB.meta || {}), posIntegration:remote.meta.posIntegration };
+  }
+  normalizeDB();
+  saveDB({ skipRemote:true, skipMeta:true });
+}
 async function syncRemoteDB(){
   setSyncStatus("saving");
   const remote = await fetchRemoteDB();
@@ -518,6 +528,7 @@ async function syncRemoteDB(){
   const localAt = parseTime(DB.meta && DB.meta.updatedAt);
   const remoteAt = parseTime(remote.meta && remote.meta.updatedAt);
   if(remoteAt && (!localAt || remoteAt > localAt)){ applyRemote(remote); setSyncStatus("saved"); return true; }
+  mergeRemotePosSales(remote);
   if(localAt && (!remoteAt || localAt > remoteAt)){ scheduleRemoteSave(); }
   else setSyncStatus("saved");
   return false;
@@ -1868,6 +1879,10 @@ function renderVentasRecientes(){
   const fEst   = document.getElementById("f-estatus")?.value || "";
   const fMP    = document.getElementById("f-mp")?.value || "";
   const fEnt   = document.getElementById("f-entrega")?.value || "";
+  const fOrigen = document.getElementById("f-origen")?.value || "";
+  const fSucursal = document.getElementById("f-sucursal")?.value || "";
+  const fSync = document.getElementById("f-sync")?.value || "";
+  const fHistorica = document.getElementById("f-historica")?.value || "";
   const tb = document.querySelector("#tabla-ventas tbody");
   let arr = DB.ventas.slice();
   if(desde) arr = arr.filter(v=>ymd(v.fecha)>=desde);
@@ -1886,11 +1901,20 @@ function renderVentasRecientes(){
   if(fEst)   arr = arr.filter(v=> (v.estatusPago||"")===fEst);
   if(fMP)    arr = arr.filter(v=> (v.pagos||[]).some(p=>p.metodo===fMP));
   if(fEnt)   arr = arr.filter(v=> (v.estatusEntrega||"")===fEnt);
+  if(fOrigen === "better-mood-pos") arr = arr.filter(v=>v.sourceSystem === "better-mood-pos");
+  if(fOrigen === "manual") arr = arr.filter(v=>v.sourceSystem !== "better-mood-pos");
+  if(fSucursal) arr = arr.filter(v=>String(v.sourceBranchId || "").toLowerCase() === fSucursal);
+  if(fSync) arr = arr.filter(v=>String(v.syncStatus || "") === fSync);
+  if(fHistorica === "historical") arr = arr.filter(v=>v.sourceSystem === "better-mood-pos" && v.historical === true);
+  if(fHistorica === "new") arr = arr.filter(v=>v.sourceSystem === "better-mood-pos" && v.historical !== true);
   const rows = arr.map(v=>{
     const mpSet = new Set((v.pagos||[]).map(p=>p.metodo));
     const mpTxt = mpSet.size===0 ? "—" : (mpSet.size>1 ? "Mixto" : [...mpSet][0]);
     return `<tr>
       <td>${escapeHtml(v.folio)}</td>
+      <td>${v.sourceSystem === "better-mood-pos" ? '<span class="source-badge">POS</span>' : '<span class="muted">Panera</span>'}</td>
+      <td>${v.sourceSystem === "better-mood-pos" ? `<strong>${escapeHtml(v.sourceFolioNumber || v.sourceOrderNumber || v.sourceOrderId)}</strong>${v.mixedSale ? '<br><span class="tag warn">Mixta</span>' : ''}` : "—"}</td>
+      <td>${escapeHtml(v.sourceBranchId ? String(v.sourceBranchId).toUpperCase() : "—")}</td>
       <td>${escapeHtml(fmtLocal(v.fecha))}</td>
       <td>${escapeHtml(v.clienteNombre||"Mostrador")}</td>
       <td>${escapeHtml(v.canal||"—")}</td>
@@ -1900,14 +1924,33 @@ function renderVentasRecientes(){
       <td class="right">${fmt(v.total)}</td>
       <td class="right">${fmt(v.saldo)}</td>
       <td>${escapeHtml(v.estatusEntrega||"—")}</td>
+      <td>${v.sourceSystem === "better-mood-pos" ? `<span class="sync-badge ${escapeHtml(v.syncStatus || "pending")}">${escapeHtml(v.syncStatus === "synced" ? "Confirmada" : v.syncStatus || "Pendiente")}</span>` : "—"}</td>
       <td>
-        <button class="btn alt" data-id="${dataAttr(v.id)}" onclick="editarVenta(decodeURIComponent(this.dataset.id))">Editar</button>
+        ${v.sourceSystem === "better-mood-pos" ? '<span class="muted">Fuente POS</span>' : `<button class="btn alt" data-id="${dataAttr(v.id)}" onclick="editarVenta(decodeURIComponent(this.dataset.id))">Editar</button>`}
         <button class="btn primary" data-id="${dataAttr(v.id)}" onclick="duplicarVenta(decodeURIComponent(this.dataset.id))">Duplicar</button>
-        <button class="btn ghost" data-id="${dataAttr(v.id)}" onclick="eliminarVenta(decodeURIComponent(this.dataset.id))">Eliminar</button>
+        ${v.sourceSystem === "better-mood-pos" ? "" : `<button class="btn ghost" data-id="${dataAttr(v.id)}" onclick="eliminarVenta(decodeURIComponent(this.dataset.id))">Eliminar</button>`}
       </td>
     </tr>`;
   });
-  tb.innerHTML = rows.join("") || `<tr><td colspan="12" class="muted">Sin ventas</td></tr>`;
+  tb.innerHTML = rows.join("") || `<tr><td colspan="15" class="muted">Sin ventas</td></tr>`;
+  renderPosReconciliation();
+}
+
+function renderPosReconciliation(){
+  const root = document.getElementById("pos-reconciliation");
+  if(!root) return;
+  const imported = DB.ventas.filter(v=>v.sourceSystem === "better-mood-pos");
+  const meta = DB.meta?.posIntegration || {};
+  if(imported.length === 0 && !meta.lastBackfillAt){ root.classList.add("hidden"); root.innerHTML = ""; return; }
+  const total = imported.reduce((sum,v)=>sum + Number(v.total || 0), 0);
+  const conflicts = imported.filter(v=>v.syncStatus === "conflict").length + Number(meta.conflicts || 0);
+  root.classList.remove("hidden");
+  root.innerHTML = `
+    <div><span>Importadas</span><strong>${imported.length}</strong></div>
+    <div><span>Total POS Panera</span><strong>${escapeHtml(fmt(total))}</strong></div>
+    <div><span>Pendientes</span><strong>${Number(meta.pending || 0)}</strong></div>
+    <div><span>Conflictos</span><strong>${conflicts}</strong></div>
+    <div><span>Último backfill</span><strong>${meta.lastBackfillAt ? escapeHtml(fmtLocal(meta.lastBackfillAt)) : "—"}</strong></div>`;
 }
 
 function eliminarVenta(ventaId){

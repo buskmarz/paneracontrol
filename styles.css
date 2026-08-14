@@ -1526,3 +1526,14 @@ html[data-theme="dark"] .quick-types button[aria-selected="true"] {
     animation-iteration-count: 1 !important;
   }
 }
+.table-scroll{overflow:auto;max-width:100%;-webkit-overflow-scrolling:touch}
+.source-badge,.sync-badge{display:inline-flex;align-items:center;min-height:24px;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:700;white-space:nowrap}
+.source-badge{background:#163f46;color:#fff}
+.sync-badge.synced{background:#e4f5ed;color:#176845}
+.sync-badge.conflict{background:#fde8e6;color:#a3312d}
+.sync-badge.pending{background:#fff3c4;color:#745900}
+.pos-reconciliation{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:1px;margin:8px 0 12px;border:1px solid #d8e0e2;border-radius:6px;overflow:hidden;background:#d8e0e2}
+.pos-reconciliation>div{display:grid;gap:3px;padding:10px 12px;background:#f8fbfb}
+.pos-reconciliation span{font-size:12px;color:#526469}
+.pos-reconciliation strong{font-size:16px;color:#173b42}
+@media(max-width:720px){.pos-reconciliation{grid-template-columns:repeat(2,minmax(0,1fr))}.pos-reconciliation>div:last-child{grid-column:1/-1}}

@@ -1,41 +1,11 @@
 const { isAuthorized } = require("./lib/session-auth");
-
-const STORE_NAME = "panera-db";
-const KEY = "db";
+const { KEY, openStore, readDb } = require("./lib/db-store");
 
 const BASE_HEADERS = {
   "Content-Type": "application/json",
   "Cache-Control": "no-store",
   "X-Content-Type-Options": "nosniff"
 };
-
-function getStoreConfig(){
-  const siteID = (
-    process.env.NETLIFY_SITE_ID ||
-    process.env.SITE_ID ||
-    process.env.PANERA_BLOBS_SITE_ID ||
-    ""
-  ).trim();
-  const token = (
-    process.env.NETLIFY_BLOBS_TOKEN ||
-    process.env.NETLIFY_ACCESS_TOKEN ||
-    process.env.NETLIFY_AUTH_TOKEN ||
-    process.env.NETLIFY_PERSONAL_ACCESS_TOKEN ||
-    process.env.PERSONAL_ACCESS_TOKEN ||
-    process.env.PANERA_BLOBS_TOKEN_2026 ||
-    ""
-  ).trim();
-  if(siteID && token) return { siteID, token };
-  return null;
-}
-async function openStore(){
-  const { getStore } = await import("@netlify/blobs");
-  const hasInjected = !!(process.env.NETLIFY_BLOBS_URL && process.env.NETLIFY_BLOBS_TOKEN);
-  if(hasInjected) return getStore(STORE_NAME);
-  const cfg = getStoreConfig();
-  if(cfg) return getStore({ name:STORE_NAME, ...cfg });
-  return null;
-}
 
 function jsonResponse(statusCode, payload, extraHeaders={}){
   return {
@@ -62,11 +32,7 @@ exports.handler = async (event) => {
 
   if(event.httpMethod === "GET"){
     try{
-      const raw = await store.get(KEY);
-      if(!raw) return jsonResponse(200, { ok:true, db:null });
-      const text = (typeof raw === "string") ? raw : Buffer.from(raw).toString("utf8");
-      let db = null;
-      try{ db = JSON.parse(text); }catch(e){ db = null; }
+      const db = await readDb(store);
       return jsonResponse(200, { ok:true, db });
     }catch(e){
       return jsonResponse(503, { ok:false, error:"blobs_unavailable" });
@@ -80,8 +46,9 @@ exports.handler = async (event) => {
     const db = (payload && payload.db) ? payload.db : payload;
     if(!db || typeof db !== "object") return jsonResponse(400, { ok:false, error:"invalid_db" });
     try{
-      await store.set(KEY, JSON.stringify(db));
-      return jsonResponse(200, { ok:true });
+      const manualDb = { ...db, ventas:(Array.isArray(db.ventas) ? db.ventas : []).filter(sale=>sale?.sourceSystem !== "better-mood-pos") };
+      await store.setJSON(KEY, manualDb);
+      return jsonResponse(200, { ok:true, protectedImports:true });
     }catch(e){
       return jsonResponse(503, { ok:false, error:"blobs_unavailable" });
     }

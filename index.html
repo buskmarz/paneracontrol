@@ -355,6 +355,7 @@
       <div class="hr"></div>
 
       <h3>Ventas recientes</h3>
+      <div id="pos-reconciliation" class="pos-reconciliation hidden" aria-live="polite"></div>
       <div class="grid g6">
         <div><label>Desde</label><input type="date" id="f-desde" oninput="renderVentasRecientes()"></div>
         <div><label>Hasta</label><input type="date" id="f-hasta" oninput="renderVentasRecientes()"></div>
@@ -379,11 +380,46 @@
           <label>Estatus de entrega</label>
           <select id="f-entrega" onchange="renderVentasRecientes()"></select>
         </div>
+        <div>
+          <label>Origen</label>
+          <select id="f-origen" onchange="renderVentasRecientes()">
+            <option value="">(todos)</option>
+            <option value="better-mood-pos">POS Better Mood</option>
+            <option value="manual">Captura Panera</option>
+          </select>
+        </div>
+        <div>
+          <label>Sucursal</label>
+          <select id="f-sucursal" onchange="renderVentasRecientes()">
+            <option value="">(todas)</option>
+            <option value="upaep">UPAEP</option>
+            <option value="cholula">Cholula</option>
+          </select>
+        </div>
+        <div>
+          <label>Sincronización</label>
+          <select id="f-sync" onchange="renderVentasRecientes()">
+            <option value="">(todos)</option>
+            <option value="synced">Confirmada</option>
+            <option value="conflict">Conflicto</option>
+            <option value="pending">Pendiente</option>
+          </select>
+        </div>
+        <div>
+          <label>Periodo de origen</label>
+          <select id="f-historica" onchange="renderVentasRecientes()">
+            <option value="">(todos)</option>
+            <option value="historical">Histórica importada</option>
+            <option value="new">Nueva sincronizada</option>
+          </select>
+        </div>
       </div>
-      <table id="tabla-ventas" style="margin-top:8px">
-        <thead><tr><th>Folio</th><th>Fecha</th><th>Cliente</th><th>Canal</th><th>Envío</th><th>Status de pago</th><th>Método pago</th><th class="right">Total</th><th class="right">Saldo</th><th>Entrega</th><th>Acciones</th></tr></thead>
+      <div class="table-scroll" style="margin-top:8px">
+      <table id="tabla-ventas">
+        <thead><tr><th>Folio</th><th>Origen</th><th>Referencia</th><th>Sucursal</th><th>Fecha</th><th>Cliente</th><th>Canal</th><th>Envío</th><th>Status de pago</th><th>Método pago</th><th class="right">Total</th><th class="right">Saldo</th><th>Entrega</th><th>Sync</th><th>Acciones</th></tr></thead>
         <tbody></tbody>
       </table>
+      </div>
     </section>
   </section>
 

@@ -4,7 +4,7 @@
   "private": true,
   "description": "Panera control de ventas",
   "scripts": {
-    "test": "node --test finance-core.test.js auth.test.js"
+    "test": "node --test finance-core.test.js auth.test.js pos-sale-contract.test.js db-merge.test.js pos-sale-store.test.js"
   },
   "engines": {
     "node": ">=18"
