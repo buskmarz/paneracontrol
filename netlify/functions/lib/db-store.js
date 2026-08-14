@@ -55,7 +55,9 @@ async function listKeys(store, prefix){
 async function readImportedSales(store){
   const snapshot = await store.get(POS_SALES_SNAPSHOT_KEY, { type:"json", consistency:"strong" }).catch(()=>null);
   const snapshotSales = Array.isArray(snapshot?.sales) ? snapshot.sales : [];
-  const keys = await listKeys(store, snapshotSales.length ? POS_SALES_DELTA_PREFIX : POS_SALES_PREFIX);
+  const coveredDeltaKeys = new Set(Array.isArray(snapshot?.coveredDeltaKeys) ? snapshot.coveredDeltaKeys : []);
+  const keys = (await listKeys(store, snapshotSales.length ? POS_SALES_DELTA_PREFIX : POS_SALES_PREFIX))
+    .filter(key=>!coveredDeltaKeys.has(key));
   const records = (await Promise.all(keys.map(key=>store.get(key, { type:"json", consistency:"strong" }).catch(()=>null)))).filter(Boolean);
   const bySource = new Map();
   const { sourceKey, compareRevision } = require("./pos-sale-contract");
@@ -123,8 +125,10 @@ async function writeImportedSale(store, sale){
 
 async function writeImportedSalesSnapshot(store, sales){
   const rows = Array.isArray(sales) ? sales : [];
-  await store.setJSON(POS_SALES_SNAPSHOT_KEY, { createdAt:new Date().toISOString(), sales:rows });
-  return { createdAt:new Date().toISOString(), sales:rows.length };
+  const createdAt = new Date().toISOString();
+  const coveredDeltaKeys = await listKeys(store, POS_SALES_DELTA_PREFIX);
+  await store.setJSON(POS_SALES_SNAPSHOT_KEY, { createdAt, coveredDeltaKeys, sales:rows });
+  return { createdAt, sales:rows.length, coveredDeltas:coveredDeltaKeys.length };
 }
 
 async function writeReconciliation(store, summary){

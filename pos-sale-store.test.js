@@ -41,4 +41,9 @@ test("cada revision se guarda en un registro append-only e idempotente", async()
   const afterSnapshot = await readImportedSales(store);
   assert.equal(afterSnapshot.length, 1);
   assert.equal(afterSnapshot[0].sourceRevision, 2);
+  const later = sale(3, "2026-08-13T18:10:00.000Z", "c".repeat(64));
+  await writeImportedSale(store, later);
+  const afterDelta = await readImportedSales(store);
+  assert.equal(afterDelta.length, 1);
+  assert.equal(afterDelta[0].sourceRevision, 3);
 });
