@@ -1,6 +1,6 @@
 const crypto = require("node:crypto");
 const { isAuthorized } = require("./lib/session-auth");
-const { openStore, readImportedSales, readImportedSale, writeImportedSale, writeReconciliation } = require("./lib/db-store");
+const { openStore, readImportedSales, readImportedSale, writeImportedSale, writeImportedSalesSnapshot, writeReconciliation } = require("./lib/db-store");
 const { clean, sourceKey, validatePayload, normalizePayload, compareRevision } = require("./lib/pos-sale-contract");
 
 const HEADERS = { "Content-Type":"application/json", "Cache-Control":"no-store", "X-Content-Type-Options":"nosniff" };
@@ -71,6 +71,18 @@ exports.handler = async event=>{
       return response(200, { ok:true, modified:true, action:"reconciliation_recorded", summary:record });
     }catch(error){
       return response(503, { ok:false, error:"reconciliation_unavailable" });
+    }
+  }
+  if(body.action === "record_snapshot"){
+    const sales = Array.isArray(body.sales) ? body.sales : [];
+    if(!sales.length || sales.length > 5000) return response(400, { ok:false, error:"invalid_snapshot" });
+    const invalid = sales.some(sale=>clean(sale?.sourceSystem) !== "better-mood-pos" || !clean(sale?.sourceOrderId) || !["upaep","cholula"].includes(clean(sale?.sourceBranchId).toLowerCase()));
+    if(invalid) return response(400, { ok:false, error:"invalid_snapshot_sale" });
+    try{
+      const snapshot = await writeImportedSalesSnapshot(store, sales);
+      return response(200, { ok:true, modified:true, action:"snapshot_recorded", snapshot });
+    }catch(error){
+      return response(503, { ok:false, error:"snapshot_unavailable" });
     }
   }
   const candidate = normalizePayload(body.sale || body);

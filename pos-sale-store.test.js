@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { importedSaleRecordKey, writeImportedSale, readImportedSale, readImportedSales } = require("./netlify/functions/lib/db-store");
+const { importedSaleRecordKey, writeImportedSale, writeImportedSalesSnapshot, readImportedSale, readImportedSales } = require("./netlify/functions/lib/db-store");
 
 function memoryStore(){
   const rows = new Map();
@@ -31,10 +31,14 @@ test("cada revision se guarda en un registro append-only e idempotente", async()
   assert.equal((await writeImportedSale(store, first)).modified, false);
   await writeImportedSale(store, next);
   const visible = await readImportedSales(store);
-  assert.equal(store.rows.size, 2);
+  assert.equal(store.rows.size, 4);
   assert.equal(visible.length, 1);
   assert.equal(visible[0].sourceRevision, 2);
   const direct = await readImportedSale(store, "upaep", "order-1");
   assert.equal(direct.sourceRevision, 2);
   assert.equal(await readImportedSale(store, "cholula", "order-1"), null);
+  await writeImportedSalesSnapshot(store, [next]);
+  const afterSnapshot = await readImportedSales(store);
+  assert.equal(afterSnapshot.length, 1);
+  assert.equal(afterSnapshot[0].sourceRevision, 2);
 });

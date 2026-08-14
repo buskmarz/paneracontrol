@@ -1,6 +1,8 @@
 const STORE_NAME = "panera-db";
 const KEY = "db";
 const POS_SALES_PREFIX = "integrations/better-pos-sales/";
+const POS_SALES_DELTA_PREFIX = "integrations/better-pos-sales-delta/";
+const POS_SALES_SNAPSHOT_KEY = "integrations/better-pos-sales-snapshot";
 const POS_RECONCILIATION_KEY = "integrations/better-pos-sales-reconciliation";
 
 function getStoreConfig(){
@@ -51,11 +53,13 @@ async function listKeys(store, prefix){
 }
 
 async function readImportedSales(store){
-  const keys = await listKeys(store, POS_SALES_PREFIX);
+  const snapshot = await store.get(POS_SALES_SNAPSHOT_KEY, { type:"json", consistency:"strong" }).catch(()=>null);
+  const snapshotSales = Array.isArray(snapshot?.sales) ? snapshot.sales : [];
+  const keys = await listKeys(store, snapshotSales.length ? POS_SALES_DELTA_PREFIX : POS_SALES_PREFIX);
   const records = (await Promise.all(keys.map(key=>store.get(key, { type:"json", consistency:"strong" }).catch(()=>null)))).filter(Boolean);
   const bySource = new Map();
   const { sourceKey, compareRevision } = require("./pos-sale-contract");
-  for(const record of records){
+  for(const record of [...snapshotSales, ...records]){
     const key = sourceKey(record);
     const current = bySource.get(key);
     if(!current || compareRevision(current, record) > 0) bySource.set(key, record);
@@ -100,12 +104,27 @@ function importedSaleRecordKey(sale){
   return `${POS_SALES_PREFIX}${branch}/${order}/${revision}-${hash}.json`;
 }
 
+function importedSaleDeltaKey(sale){
+  return importedSaleRecordKey(sale).replace(POS_SALES_PREFIX, POS_SALES_DELTA_PREFIX);
+}
+
 async function writeImportedSale(store, sale){
   const key = importedSaleRecordKey(sale);
+  const deltaKey = importedSaleDeltaKey(sale);
   const existing = await store.get(key, { type:"json", consistency:"strong" }).catch(()=>null);
-  if(existing) return { modified:false, key, sale:existing };
+  if(existing){
+    await store.setJSON(deltaKey, existing);
+    return { modified:false, key, sale:existing };
+  }
   await store.setJSON(key, sale);
+  await store.setJSON(deltaKey, sale);
   return { modified:true, key, sale };
+}
+
+async function writeImportedSalesSnapshot(store, sales){
+  const rows = Array.isArray(sales) ? sales : [];
+  await store.setJSON(POS_SALES_SNAPSHOT_KEY, { createdAt:new Date().toISOString(), sales:rows });
+  return { createdAt:new Date().toISOString(), sales:rows.length };
 }
 
 async function writeReconciliation(store, summary){
@@ -114,7 +133,7 @@ async function writeReconciliation(store, summary){
 }
 
 module.exports = {
-  KEY, STORE_NAME, POS_SALES_PREFIX, POS_RECONCILIATION_KEY,
+  KEY, STORE_NAME, POS_SALES_PREFIX, POS_SALES_DELTA_PREFIX, POS_SALES_SNAPSHOT_KEY, POS_RECONCILIATION_KEY,
   openStore, readDb, readDbRaw, readImportedSales, readImportedSale, combineDbWithImports,
-  importedSaleRecordKey, writeImportedSale, writeReconciliation
+  importedSaleRecordKey, importedSaleDeltaKey, writeImportedSale, writeImportedSalesSnapshot, writeReconciliation
 };
