@@ -32,3 +32,10 @@ test("con la misma revision gana la mutacion mas reciente", ()=>{
   const newer = fixture({ sourceMutationAt:"2026-08-13T18:05:00.000Z" });
   assert.ok(compareRevision(older, newer) > 0);
 });
+
+test("conserva el hash fuente y desempata por ultima sincronizacion", ()=>{
+  const first = normalizePayload({ ...fixture(), payloadHash:"better-hash", sourceRevision:2, sourceMutationAt:"2026-08-10T12:00:00.000Z" }, "2026-08-10T12:01:00.000Z");
+  const second = normalizePayload({ ...fixture(), payloadHash:"better-hash", sourceRevision:2, sourceMutationAt:"2026-08-10T12:00:00.000Z" }, "2026-08-10T12:02:00.000Z");
+  assert.equal(first.sourcePayloadHash, "better-hash");
+  assert.ok(compareRevision(first, second) > 0);
+});

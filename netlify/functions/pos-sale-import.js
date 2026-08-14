@@ -84,7 +84,7 @@ exports.handler = async event=>{
     const imported = await readImportedSales(store);
     const key = sourceKey(candidate);
     const existing = imported.find(sale=>sourceKey(sale) === key) || null;
-    if(existing && existing.payloadHash === candidate.payloadHash) return response(200, { ok:true, modified:false, action:"unchanged", sale:existing });
+    if(existing && existing.sourcePayloadHash && existing.sourcePayloadHash === candidate.sourcePayloadHash) return response(200, { ok:true, modified:false, action:"unchanged", sale:existing });
     if(existing && compareRevision(existing, candidate) < 0) return response(200, { ok:true, modified:false, action:"stale", sale:existing });
     const sale = {
       ...existing, ...candidate,

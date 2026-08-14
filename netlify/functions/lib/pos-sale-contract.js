@@ -58,6 +58,7 @@ function normalizePayload(payload, now=new Date().toISOString()){
     sourceClosedAt:clean(payload.sourceClosedAt || payload.fecha),
     sourceMutationAt:clean(payload.sourceMutationAt || payload.sourceClosedAt || payload.fecha),
     sourceEventType:clean(payload.sourceEventType || "closed"),
+    sourcePayloadHash:clean(payload.sourcePayloadHash || payload.payloadHash),
     integrationEventId:clean(payload.integrationEventId || sourceKey(payload)),
     canal:clean(payload.canal || "Panera General"),
     clienteNombre:clean(payload.clienteNombre || "Mostrador"),
@@ -99,7 +100,9 @@ function compareRevision(existing, candidate){
   const left = Number(existing?.sourceRevision || 0);
   const right = Number(candidate?.sourceRevision || 0);
   if(right !== left) return right - left;
-  return Date.parse(candidate?.sourceMutationAt || candidate?.sourceClosedAt || candidate?.fecha || 0) - Date.parse(existing?.sourceMutationAt || existing?.sourceClosedAt || existing?.fecha || 0);
+  const mutationDelta = Date.parse(candidate?.sourceMutationAt || candidate?.sourceClosedAt || candidate?.fecha || 0) - Date.parse(existing?.sourceMutationAt || existing?.sourceClosedAt || existing?.fecha || 0);
+  if(mutationDelta) return mutationDelta;
+  return Date.parse(candidate?.lastSyncedAt || candidate?.importedAt || 0) - Date.parse(existing?.lastSyncedAt || existing?.importedAt || 0);
 }
 
 module.exports = { clean, money, payloadHash, sourceKey, validatePayload, normalizePayload, compareRevision };
