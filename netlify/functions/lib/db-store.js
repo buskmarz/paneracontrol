@@ -4,6 +4,7 @@ const POS_SALES_PREFIX = "integrations/better-pos-sales/";
 const POS_SALES_DELTA_PREFIX = "integrations/better-pos-sales-delta/";
 const POS_SALES_SNAPSHOT_KEY = "integrations/better-pos-sales-snapshot";
 const POS_RECONCILIATION_KEY = "integrations/better-pos-sales-reconciliation";
+const { getStore } = require("@netlify/blobs");
 const { sourceKey, compareRevision } = require("./pos-sale-contract");
 
 function getStoreConfig(){
@@ -26,7 +27,6 @@ function getStoreConfig(){
 }
 
 async function openStore(){
-  const { getStore } = await import("@netlify/blobs");
   const hasInjected = !!(process.env.NETLIFY_BLOBS_URL && process.env.NETLIFY_BLOBS_TOKEN);
   if(hasInjected) return getStore({ name:STORE_NAME, consistency:"strong" });
   const cfg = getStoreConfig();
