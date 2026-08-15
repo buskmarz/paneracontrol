@@ -71,6 +71,7 @@
     <button data-tab="tab-clientes" role="tab" aria-selected="false">Clientes</button>
     <button data-tab="tab-b2b" role="tab" aria-selected="false">B2B</button>
     <button data-tab="tab-productos" role="tab" aria-selected="false">Productos</button>
+    <button data-tab="tab-inventario" role="tab" aria-selected="false">Inventario</button>
     <button data-tab="tab-cotizador" role="tab" aria-selected="false">Cotizador</button>
     <button data-tab="tab-gastos" role="tab" aria-selected="false">Gastos</button>
     <button data-tab="tab-documentos" role="tab" aria-selected="false">Documentos</button>
@@ -1106,6 +1107,35 @@
         </section>
       </div>
     </section>
+  </section>
+
+  <section id="tab-inventario" class="tab hidden" aria-label="Inventario sincronizado de Better Mood">
+    <section class="card inventory-hero">
+      <div>
+        <p class="eyebrow">Fuente de verdad · Better Mood Coffee</p>
+        <h2>Inventario de pasteles</h2>
+        <p class="muted">Existencias, entradas, salidas y conteos históricos. Esta vista es de consulta y no modifica la cafetería.</p>
+      </div>
+      <button class="btn alt" type="button" onclick="loadPaneraInventory(true)">Actualizar</button>
+    </section>
+    <div id="inventory-state" class="inventory-state" role="status" aria-live="polite">Cargando inventario…</div>
+    <section class="inventory-toolbar" aria-label="Filtros de inventario">
+      <label>Sucursal<select id="inv-branch" onchange="renderPaneraInventory()"><option value="all">Todas</option><option value="upaep">UPAEP</option><option value="cholula">Cholula</option></select></label>
+      <label>Buscar<input id="inv-search" type="search" placeholder="Pastel o producto" oninput="renderPaneraInventory()"></label>
+      <label>Desde<input id="inv-from" type="date" onchange="renderPaneraInventory()"></label>
+      <label>Hasta<input id="inv-to" type="date" onchange="renderPaneraInventory()"></label>
+      <label>Movimiento<select id="inv-type" onchange="renderPaneraInventory()"><option value="all">Todos</option><option value="entrada">Entradas</option><option value="venta">Ventas</option><option value="ajuste">Ajustes</option><option value="merma">Mermas</option><option value="cancelacion">Cancelaciones</option><option value="devolucion">Devoluciones</option></select></label>
+    </section>
+    <div id="inventory-kpis" class="inventory-kpis"></div>
+    <section class="card">
+      <div class="section-heading"><div><h3>Existencias actuales</h3><p class="muted">Una fila por pastel y sucursal.</p></div></div>
+      <div id="inventory-stock-list" class="inventory-stock-list"></div>
+    </section>
+    <div class="inventory-grid">
+      <section class="card"><h3>Movimientos históricos</h3><div id="inventory-movements" class="inventory-ledger"></div></section>
+      <section class="card"><h3>Compras e ingresos</h3><div id="inventory-purchases" class="inventory-ledger"></div></section>
+    </div>
+    <section class="card"><h3>Conciliación y conteos físicos</h3><div id="inventory-reconciliation" class="inventory-reconciliation"></div></section>
   </section>
 
   <footer><span id="footer-brand">Panera Signature</span>.</footer>

@@ -419,6 +419,8 @@ const REMOTE = {
   errorShown: false
 };
 const DOCUMENTS_ENDPOINT = appPath("/.netlify/functions/documents");
+const INVENTORY_ENDPOINT = appPath("/.netlify/functions/inventory-feed");
+let PANERA_INVENTORY = { status:"idle", snapshots:[], error:"" };
 
 function remoteWarn(msg){
   if(REMOTE.errorShown) return;
@@ -1203,6 +1205,7 @@ function initUI(){
       if(btn.dataset.tab==="tab-dashboard") renderDashboard();
       if(btn.dataset.tab==="tab-finanzas") renderFinanzas();
       if(btn.dataset.tab==="tab-documentos") listDocuments();
+      if(btn.dataset.tab==="tab-inventario") loadPaneraInventory();
       if(btn.dataset.tab==="tab-b2b") renderB2B();
       if(btn.dataset.tab==="tab-calendario"){ renderCalendario(); renderEventos(); }
       if(btn.dataset.tab==="tab-cotizador"){ renderMateriales(); renderRecetasList(); renderSelectMateriales(); renderIndirectos(); syncAbcForm(); recalcReceta(); initEnvioUI(); }
@@ -1309,6 +1312,7 @@ function initUI(){
   if(savedTab){
     const btn = document.querySelector(`nav button[data-tab="${savedTab}"]`);
     if(btn){ btn.click(); }
+    if(btn){ btn.scrollIntoView({ block:"nearest", inline:"center" }); }
   }
 
   // Autocomplete cliente (nombre / últimos 4 del tel / dirección)
@@ -1356,7 +1360,61 @@ function refreshDataViews(){
   const cfgMPv = document.getElementById('cfg-mp-ventas'); if(cfgMPv) cfgMPv.value = (DB.config.metodosVentas||[]).join(',');
   const cfgMPg = document.getElementById('cfg-mp-gastos'); if(cfgMPg) cfgMPg.value = (DB.config.metodosGastos||[]).join(',');
   if(document.querySelector('[data-tab="tab-documentos"]')?.classList.contains('active')) listDocuments();
+  if(document.querySelector('[data-tab="tab-inventario"]')?.classList.contains('active')) loadPaneraInventory();
 }
+
+async function loadPaneraInventory(force=false){
+  if(PANERA_INVENTORY.status==="loading" || (!force && PANERA_INVENTORY.status==="ready")){ renderPaneraInventory(); return; }
+  PANERA_INVENTORY={...PANERA_INVENTORY,status:"loading",error:""}; renderPaneraInventory();
+  try{
+    const res=await fetchWithTimeout(INVENTORY_ENDPOINT,{credentials:"same-origin",headers:{Accept:"application/json"},cache:"no-store"});
+    if(res.status===401){ handleSessionExpired(); return; }
+    const data=await res.json().catch(()=>null);
+    if(!res.ok||!data?.ok) throw new Error(data?.error||`HTTP ${res.status}`);
+    PANERA_INVENTORY={status:data.status||"ready",snapshots:Array.isArray(data.snapshots)?data.snapshots:[],error:""};
+  }catch(error){ PANERA_INVENTORY={...PANERA_INVENTORY,status:"error",error:"No fue posible cargar el inventario sincronizado."}; }
+  renderPaneraInventory();
+}
+
+function inventoryFilters(){
+  return {branch:document.getElementById("inv-branch")?.value||"all",search:(document.getElementById("inv-search")?.value||"").trim().toLowerCase(),from:document.getElementById("inv-from")?.value||"",to:document.getElementById("inv-to")?.value||"",type:document.getElementById("inv-type")?.value||"all"};
+}
+function inInventoryRange(row,f){ const d=String(row.date||row.occurredAt||"").slice(0,10); return (!f.from||d>=f.from)&&(!f.to||d<=f.to); }
+function formatQty(value){ return Number(value||0).toLocaleString("es-MX",{maximumFractionDigits:3}); }
+function inventoryStatus(stock,min,active){ if(!active)return"Inactivo"; if(stock<0)return"Revisar"; if(stock===0)return"Agotado"; if(stock<=min)return"Pedir"; return"OK"; }
+function renderPaneraInventory(){
+  const state=document.getElementById("inventory-state"); if(!state)return;
+  if(PANERA_INVENTORY.status==="loading"){state.className="inventory-state loading";state.textContent="Cargando inventario confirmado…";return;}
+  if(PANERA_INVENTORY.status==="error"){state.className="inventory-state error";state.textContent=PANERA_INVENTORY.error;return;}
+  if(!PANERA_INVENTORY.snapshots.length){state.className="inventory-state empty";state.textContent="Todavía no hay una sincronización de Better Mood.";return;}
+  const f=inventoryFilters();
+  const snapshots=PANERA_INVENTORY.snapshots.filter(s=>f.branch==="all"||s.branchId===f.branch);
+  const rows=[]; const movements=[]; const purchases=[]; const counts=[];
+  snapshots.forEach(snapshot=>{
+    const products=new Map((snapshot.products||[]).map(p=>[p.itemId,p]));
+    (snapshot.stocks||[]).forEach(stock=>{const product=products.get(stock.itemId)||{};if(!f.search||String(product.name||"").toLowerCase().includes(f.search))rows.push({...stock,...product,branchId:snapshot.branchId});});
+    (snapshot.movements||[]).forEach(row=>{if((f.type==="all"||row.type===f.type)&&inInventoryRange(row,f)&&(!f.search||String(row.productName||"").toLowerCase().includes(f.search)))movements.push({...row,branchId:snapshot.branchId});});
+    (snapshot.purchases||[]).forEach(row=>{if(inInventoryRange(row,f)&&(!f.search||String(row.productName||"").toLowerCase().includes(f.search)))purchases.push({...row,branchId:snapshot.branchId});});
+    (snapshot.counts||[]).forEach(row=>{if(inInventoryRange(row,f)&&(!f.search||String(row.productName||"").toLowerCase().includes(f.search)))counts.push({...row,branchId:snapshot.branchId});});
+  });
+  movements.sort((a,b)=>String(b.occurredAt).localeCompare(String(a.occurredAt)));
+  purchases.sort((a,b)=>String(b.occurredAt).localeCompare(String(a.occurredAt)));
+  counts.sort((a,b)=>String(b.occurredAt).localeCompare(String(a.occurredAt)));
+  const updated=snapshots.map(s=>s.sourceUpdatedAt).sort().at(-1);
+  state.className=`inventory-state ${PANERA_INVENTORY.status}`;state.textContent=`Sincronizado con Better Mood · ${updated?fmtLocal(updated):"sin fecha"}${PANERA_INVENTORY.status==="partial"?" · falta una sucursal":""}`;
+  document.getElementById("inventory-kpis").innerHTML=[
+    ["Productos",rows.length],["Unidades visibles",formatQty(rows.reduce((n,r)=>n+Number(r.stock||0),0))],["Por revisar",rows.filter(r=>Number(r.stock)<0).length],["Movimientos",movements.length]
+  ].map(([label,value])=>`<div><span>${label}</span><strong>${value}</strong></div>`).join("");
+  document.getElementById("inventory-stock-list").innerHTML=rows.length?rows.sort((a,b)=>a.name.localeCompare(b.name,"es")).map(row=>{
+    const status=inventoryStatus(Number(row.stock),Number(row.minimum),row.active);return `<button class="inventory-stock-row" type="button" onclick="focusInventoryProduct('${dataAttr(row.itemId)}')"><span><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.branchId.toUpperCase())} · ${escapeHtml(row.unit||"pieza")}</small></span><b>${formatQty(row.stock)}</b><em class="inv-status ${status.toLowerCase()}">${status}</em></button>`;
+  }).join(""):`<p class="empty-copy">Sin productos para estos filtros.</p>`;
+  const ledger=(list,kind)=>list.slice(0,250).map(row=>`<article class="ledger-row"><div><strong>${escapeHtml(row.productName)}</strong><small>${escapeHtml(row.branchId.toUpperCase())} · ${escapeHtml(row.date)}${row.sourceRef?` · ${escapeHtml(row.sourceRef)}`:""}</small></div><b class="${Number(row.quantity)>=0?"positive":"negative"}">${kind==="purchase"?"+":""}${formatQty(row.quantity)}</b></article>`).join("")||`<p class="empty-copy">Sin registros para estos filtros.</p>`;
+  document.getElementById("inventory-movements").innerHTML=ledger(movements,"movement");
+  document.getElementById("inventory-purchases").innerHTML=ledger(purchases,"purchase");
+  const negatives=rows.filter(r=>Number(r.stock)<0);
+  document.getElementById("inventory-reconciliation").innerHTML=`<div class="reconciliation-summary"><strong>${negatives.length?`${negatives.length} existencia(s) negativa(s) requieren revisión`:"Sin diferencias negativas en la vista"}</strong><span>${counts.length} conteos físicos históricos visibles. No se realizan ajustes desde Panera.</span></div>${negatives.map(r=>`<div class="reconciliation-row"><span>${escapeHtml(r.name)} · ${escapeHtml(r.branchId.toUpperCase())}</span><b>${formatQty(r.stock)}</b></div>`).join("")}`;
+}
+function focusInventoryProduct(encoded){ const id=decodeURIComponent(encoded); const input=document.getElementById("inv-search"); const row=PANERA_INVENTORY.snapshots.flatMap(s=>s.products||[]).find(p=>p.itemId===id); if(input&&row){input.value=row.name;renderPaneraInventory();input.scrollIntoView({behavior:"smooth",block:"center"});} }
 
 function fillSelect(id_, arr){
   const s = document.getElementById(id_);
