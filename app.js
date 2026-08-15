@@ -541,7 +541,15 @@ async function syncRemoteDB(){
  *******************************/
 const fmt = n => (Number(n||0)).toLocaleString("es-MX", { style:"currency", currency:"MXN" });
 const pad2 = n => String(n).padStart(2,'0');
-const ymd = (d)=>{ const dt = d? new Date(d): new Date(); return `${dt.getFullYear()}-${pad2(dt.getMonth()+1)}-${pad2(dt.getDate())}`; };
+const ymd = (d)=>{
+  if(typeof d === "string"){
+    const match = d.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(match) return `${match[1]}-${match[2]}-${match[3]}`;
+  }
+  const dt = d ? new Date(d) : new Date();
+  if(Number.isNaN(dt.getTime())) return "";
+  return `${dt.getFullYear()}-${pad2(dt.getMonth()+1)}-${pad2(dt.getDate())}`;
+};
 const hoyISO = ()=> ymd(new Date());
 const nowLocalDateTime = ()=>{ const dt = new Date(); return `${dt.getFullYear()}-${pad2(dt.getMonth()+1)}-${pad2(dt.getDate())}T${pad2(dt.getHours())}:${pad2(dt.getMinutes())}`; };
 const fmtLocal = (d)=>{ try{ const dt=new Date(d); return `${dt.getFullYear()}-${pad2(dt.getMonth()+1)}-${pad2(dt.getDate())} ${pad2(dt.getHours())}:${pad2(dt.getMinutes())}`; }catch(e){ return String(d).replace('T',' ').slice(0,16); } };
@@ -1388,6 +1396,12 @@ function renderPaneraInventory(){
   if(PANERA_INVENTORY.status==="error"){state.className="inventory-state error";state.textContent=PANERA_INVENTORY.error;return;}
   if(!PANERA_INVENTORY.snapshots.length){state.className="inventory-state empty";state.textContent="Todavía no hay una sincronización de Better Mood.";return;}
   const f=inventoryFilters();
+  if(f.from&&f.to&&f.from>f.to){
+    state.className="inventory-state error";state.textContent="La fecha Desde no puede ser posterior a Hasta.";
+    document.getElementById("inventory-kpis").innerHTML="";
+    document.getElementById("inventory-stock-list").innerHTML='<p class="empty-copy">Corrige el intervalo para consultar el inventario.</p>';
+    document.getElementById("inventory-movements").innerHTML="";document.getElementById("inventory-purchases").innerHTML="";document.getElementById("inventory-reconciliation").innerHTML="";return;
+  }
   const snapshots=PANERA_INVENTORY.snapshots.filter(s=>f.branch==="all"||s.branchId===f.branch);
   const rows=[]; const movements=[]; const purchases=[]; const counts=[];
   snapshots.forEach(snapshot=>{
@@ -1942,7 +1956,10 @@ function renderVentasRecientes(){
   const fSync = document.getElementById("f-sync")?.value || "";
   const fHistorica = document.getElementById("f-historica")?.value || "";
   const tb = document.querySelector("#tabla-ventas tbody");
+  const totalSales=DB.ventas.length;
   let arr = DB.ventas.slice();
+  const invalidRange=Boolean(desde&&hasta&&desde>hasta);
+  if(invalidRange) arr=[];
   if(desde) arr = arr.filter(v=>ymd(v.fecha)>=desde);
   if(hasta) arr = arr.filter(v=>ymd(v.fecha)<=hasta);
   if(cliente){
@@ -1965,11 +1982,13 @@ function renderVentasRecientes(){
   if(fSync) arr = arr.filter(v=>String(v.syncStatus || "") === fSync);
   if(fHistorica === "historical") arr = arr.filter(v=>v.sourceSystem === "better-mood-pos" && v.historical === true);
   if(fHistorica === "new") arr = arr.filter(v=>v.sourceSystem === "better-mood-pos" && v.historical !== true);
+  const filterState=document.getElementById("sales-filter-state");
+  if(filterState) filterState.textContent=invalidRange?"La fecha Desde no puede ser posterior a Hasta.":`Mostrando ${arr.length} de ${totalSales} ventas.`;
   const rows = arr.map(v=>{
     const mpSet = new Set((v.pagos||[]).map(p=>p.metodo));
     const mpTxt = mpSet.size===0 ? "—" : (mpSet.size>1 ? "Mixto" : [...mpSet][0]);
     return `<tr>
-      <td>${escapeHtml(v.folio)}</td>
+      <td><button class="sale-folio-button" type="button" data-id="${dataAttr(v.id)}" onclick="openSaleDetail(decodeURIComponent(this.dataset.id))" aria-label="Ver detalle de ${escapeHtml(v.folio)}">${escapeHtml(v.folio)}</button></td>
       <td>${v.sourceSystem === "better-mood-pos" ? '<span class="source-badge">POS</span>' : '<span class="muted">Panera</span>'}</td>
       <td>${v.sourceSystem === "better-mood-pos" ? `<strong>${escapeHtml(v.sourceFolioNumber || v.sourceOrderNumber || v.sourceOrderId)}</strong>${v.mixedSale ? '<br><span class="tag warn">Mixta</span>' : ''}` : "—"}</td>
       <td>${escapeHtml(v.sourceBranchId ? String(v.sourceBranchId).toUpperCase() : "—")}</td>
@@ -1992,6 +2011,23 @@ function renderVentasRecientes(){
   });
   tb.innerHTML = rows.join("") || `<tr><td colspan="15" class="muted">Sin ventas</td></tr>`;
   renderPosReconciliation();
+}
+
+function closeSaleDetail(){ document.getElementById("sale-detail-modal")?.remove(); }
+function openSaleDetail(ventaId){
+  const sale=DB.ventas.find(row=>row.id===ventaId); if(!sale)return;
+  closeSaleDetail();
+  const items=Array.isArray(sale.items)?sale.items:[];
+  const payments=Array.isArray(sale.pagos)?sale.pagos:[];
+  const modal=document.createElement("div");
+  modal.id="sale-detail-modal";modal.className="modal";modal.setAttribute("role","dialog");modal.setAttribute("aria-modal","true");modal.setAttribute("aria-labelledby","sale-detail-title");
+  modal.innerHTML=`<section class="quick-sheet sale-detail-sheet" role="document">
+    <div class="flex" style="justify-content:space-between;align-items:flex-start;gap:12px"><div><p class="eyebrow">Detalle de venta</p><h3 id="sale-detail-title" style="margin:2px 0">${escapeHtml(sale.folio||"Venta")}</h3><p class="muted" style="margin:0">${escapeHtml(fmtLocal(sale.fecha))} · ${escapeHtml(String(sale.sourceBranchId||"Panera").toUpperCase())}</p></div><button class="btn ghost" type="button" onclick="closeSaleDetail()" aria-label="Cerrar detalle">Cerrar</button></div>
+    <div class="sale-detail-list">${items.length?items.map(item=>`<div class="sale-detail-row"><span><strong>${escapeHtml(item.prod||item.productName||"Producto")}</strong><small>${escapeHtml(item.talla||"")}</small></span><b>${escapeHtml(formatQty(item.cant||item.quantity||0))} × ${escapeHtml(fmt(item.precio||item.unitPrice||0))}</b><strong>${escapeHtml(fmt(item.total||Number(item.cant||item.quantity||0)*Number(item.precio||item.unitPrice||0)))}</strong></div>`).join(""):`<p class="empty-copy">Esta venta histórica no contiene líneas de producto.</p>`}</div>
+    <div class="totals"><div><span>Subtotal</span><strong>${escapeHtml(fmt(sale.subtotal))}</strong></div><div><span>Total</span><strong>${escapeHtml(fmt(sale.total))}</strong></div></div>
+    <h4>Pagos</h4><div class="sale-detail-list">${payments.length?payments.map(payment=>`<div class="sale-detail-row"><span><strong>${escapeHtml(payment.metodo||"Por definir")}</strong><small>${escapeHtml(fmtLocal(payment.fecha||sale.fecha))}</small></span><strong>${escapeHtml(fmt(payment.monto))}</strong></div>`).join(""):`<p class="empty-copy">Sin pagos registrados.</p>`}</div>
+  </section>`;
+  modal.addEventListener("mousedown",event=>{if(event.target===modal)closeSaleDetail();});document.body.appendChild(modal);modal.querySelector("button")?.focus();
 }
 
 function renderPosReconciliation(){

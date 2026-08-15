@@ -358,8 +358,8 @@
       <h3>Ventas recientes</h3>
       <div id="pos-reconciliation" class="pos-reconciliation hidden" aria-live="polite"></div>
       <div class="grid g6">
-        <div><label>Desde</label><input type="date" id="f-desde" oninput="renderVentasRecientes()"></div>
-        <div><label>Hasta</label><input type="date" id="f-hasta" oninput="renderVentasRecientes()"></div>
+        <div><label>Desde</label><input type="date" id="f-desde" oninput="renderVentasRecientes()" onchange="renderVentasRecientes()"></div>
+        <div><label>Hasta</label><input type="date" id="f-hasta" oninput="renderVentasRecientes()" onchange="renderVentasRecientes()"></div>
         <div><label>Cliente</label><input id="f-cliente" placeholder="Filtrar por nombre" oninput="renderVentasRecientes()"></div>
         <div>
           <label>Canal</label>
@@ -415,6 +415,7 @@
           </select>
         </div>
       </div>
+      <p id="sales-filter-state" class="muted" aria-live="polite"></p>
       <div class="table-scroll" style="margin-top:8px">
       <table id="tabla-ventas">
         <thead><tr><th>Folio</th><th>Origen</th><th>Referencia</th><th>Sucursal</th><th>Fecha</th><th>Cliente</th><th>Canal</th><th>Envío</th><th>Status de pago</th><th>Método pago</th><th class="right">Total</th><th class="right">Saldo</th><th>Entrega</th><th>Sync</th><th>Acciones</th></tr></thead>
@@ -1122,8 +1123,8 @@
     <section class="inventory-toolbar" aria-label="Filtros de inventario">
       <label>Sucursal<select id="inv-branch" onchange="renderPaneraInventory()"><option value="all">Todas</option><option value="upaep">UPAEP</option><option value="cholula">Cholula</option></select></label>
       <label>Buscar<input id="inv-search" type="search" placeholder="Pastel o producto" oninput="renderPaneraInventory()"></label>
-      <label>Desde<input id="inv-from" type="date" onchange="renderPaneraInventory()"></label>
-      <label>Hasta<input id="inv-to" type="date" onchange="renderPaneraInventory()"></label>
+      <label>Desde<input id="inv-from" type="date" oninput="renderPaneraInventory()" onchange="renderPaneraInventory()"></label>
+      <label>Hasta<input id="inv-to" type="date" oninput="renderPaneraInventory()" onchange="renderPaneraInventory()"></label>
       <label>Movimiento<select id="inv-type" onchange="renderPaneraInventory()"><option value="all">Todos</option><option value="entrada">Entradas</option><option value="venta">Ventas</option><option value="ajuste">Ajustes</option><option value="merma">Mermas</option><option value="cancelacion">Cancelaciones</option><option value="devolucion">Devoluciones</option></select></label>
     </section>
     <div id="inventory-kpis" class="inventory-kpis"></div>

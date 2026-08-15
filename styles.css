@@ -1539,3 +1539,30 @@ html[data-theme="dark"] .quick-types button[aria-selected="true"] {
 .pos-reconciliation span{font-size:12px;color:#526469}
 .pos-reconciliation strong{font-size:16px;color:#173b42}
 @media(max-width:720px){.pos-reconciliation{grid-template-columns:repeat(2,minmax(0,1fr))}.pos-reconciliation>div:last-child{grid-column:1/-1}}
+
+/* Inventory remains readable and compact in both themes. */
+.inventory-stock-list{max-height:620px;overflow-y:auto}
+.inventory-stock-row{color:#17333b}
+html[data-theme="dark"] .inventory-state,
+html[data-theme="dark"] .inventory-kpis>div,
+html[data-theme="dark"] .inventory-stock-row,
+html[data-theme="dark"] .reconciliation-summary{background:#14242a;color:#edf5f6;border-color:#34484e}
+html[data-theme="dark"] .inventory-stock-list{background:#34484e;border-color:#34484e}
+html[data-theme="dark"] .inventory-stock-row:hover{background:#1b3037}
+html[data-theme="dark"] .inventory-stock-row small,
+html[data-theme="dark"] .inventory-kpis span,
+html[data-theme="dark"] .ledger-row small,
+html[data-theme="dark"] .reconciliation-summary span,
+html[data-theme="dark"] .empty-copy{color:#a9bcc1}
+html[data-theme="dark"] .ledger-row,
+html[data-theme="dark"] .reconciliation-row{border-color:#34484e}
+.sale-folio-button{padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;text-decoration:underline;text-decoration-color:#76c7db;text-underline-offset:3px;cursor:pointer}
+.sale-detail-sheet{width:min(720px,calc(100vw - 24px));max-height:min(760px,calc(100vh - 24px));overflow:auto}
+.sale-detail-list{display:grid;gap:1px;margin:12px 0;background:#d8e0e2;border:1px solid #d8e0e2;border-radius:6px;overflow:hidden}
+.sale-detail-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;padding:12px;background:#fff;color:#17333b}
+.sale-detail-row span{display:grid}.sale-detail-row small{color:#66777b}
+.sale-detail-sheet .totals>div{display:flex;align-items:center;justify-content:space-between;gap:16px}
+html[data-theme="dark"] .sale-detail-list{background:#34484e;border-color:#34484e}
+html[data-theme="dark"] .sale-detail-row{background:#14242a;color:#edf5f6}
+html[data-theme="dark"] .sale-detail-row small{color:#a9bcc1}
+@media(max-width:720px){.inventory-stock-list{max-height:68vh}.inventory-ledger{max-height:62vh}.sale-detail-row{grid-template-columns:minmax(0,1fr) auto}.sale-detail-row>strong:last-child{grid-column:1/-1}}
